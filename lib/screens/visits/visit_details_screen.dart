@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/providers/visit_provider.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/visit_model.dart';
 import '../../services/geocoding_service.dart';
@@ -244,7 +245,7 @@ class _VisitDetailsScreenState extends State<VisitDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _visit!.clientName,
+                      context.read<AuthProvider>().user?.name ?? 'User',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,

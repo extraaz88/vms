@@ -568,6 +568,7 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
       // This would open the current location in maps
       // Implementation depends on your MapsService
       ScaffoldMessenger.of(context).showSnackBar(
+        
         const SnackBar(
           content: Text('Opening in maps...'),
           backgroundColor: AppTheme.successColor,

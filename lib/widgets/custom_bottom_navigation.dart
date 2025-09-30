@@ -5,10 +5,12 @@ import '../core/theme/app_theme.dart';
 
 class CustomBottomNavigation extends StatelessWidget {
   final int currentIndex;
+  final bool isCheckedIn;
 
   const CustomBottomNavigation({
     super.key,
     required this.currentIndex,
+    this.isCheckedIn = false,
   });
 
   @override
@@ -46,6 +48,8 @@ class CustomBottomNavigation extends StatelessWidget {
                 activeIcon: Icons.location_on_rounded,
                 label: 'VMS',
                 route: '/visit/management',
+                isDisabled: !isCheckedIn,
+                disabledMessage: 'Please check in first',
               ),
               _buildNavItem(
                 context: context,
@@ -77,13 +81,17 @@ class CustomBottomNavigation extends StatelessWidget {
     required IconData activeIcon,
     required String label,
     required String route,
+    bool isDisabled = false,
+    String? disabledMessage,
   }) {
     final isActive = currentIndex == index;
     
     return GestureDetector(
       onTap: () {
-        if (!isActive) {
+        if (!isActive && !isDisabled) {
           context.go(route);
+        } else if (isDisabled && disabledMessage != null) {
+          _showDisabledMessage(context, disabledMessage);
         }
       },
       child: AnimatedContainer(
@@ -93,7 +101,9 @@ class CustomBottomNavigation extends StatelessWidget {
         decoration: BoxDecoration(
           color: isActive 
               ? AppTheme.primaryColor.withOpacity(0.1)
-              : Colors.transparent,
+              : isDisabled
+                  ? Colors.grey.withOpacity(0.1)
+                  : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -106,7 +116,9 @@ class CustomBottomNavigation extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isActive 
                     ? AppTheme.primaryColor
-                    : Colors.transparent,
+                    : isDisabled
+                        ? Colors.grey.withOpacity(0.3)
+                        : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: isActive ? [
                   BoxShadow(
@@ -120,7 +132,9 @@ class CustomBottomNavigation extends StatelessWidget {
                 isActive ? activeIcon : icon,
                 color: isActive 
                     ? Colors.white
-                    : Colors.grey.withOpacity(0.6),
+                    : isDisabled
+                        ? Colors.grey.withOpacity(0.4)
+                        : Colors.grey.withOpacity(0.6),
                 size: 24,
               ),
             ),
@@ -130,7 +144,9 @@ class CustomBottomNavigation extends StatelessWidget {
               style: TextStyle(
                 color: isActive 
                     ? AppTheme.primaryColor
-                    : Colors.grey.withOpacity(0.6),
+                    : isDisabled
+                        ? Colors.grey.withOpacity(0.4)
+                        : Colors.grey.withOpacity(0.6),
                 fontSize: 11,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),
@@ -142,6 +158,24 @@ class CustomBottomNavigation extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showDisabledMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.warningColor,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        action: SnackBarAction(
+          label: 'Check In',
+          textColor: Colors.white,
+          onPressed: () {
+            context.go('/checkin-checkout');
+          },
         ),
       ),
     );

@@ -7,6 +7,7 @@ import '../models/location_model.dart';
 class MockDataService {
   static const String _usersKey = 'mock_users';
   static const String _visitsKey = 'mock_visits';
+  static const String _activeVisitsKey = 'mock_active_visits';
   static const String _locationsKey = 'mock_locations';
   static const String _currentUserKey = 'current_user';
 
@@ -107,12 +108,15 @@ class MockDataService {
     };
   }
 
-  // Mock Check-in
-  static Future<Map<String, dynamic>> mockCheckIn({
-    required String clientName,
+  // Mock Create Visit (direct creation without check-in/check-out)
+  static Future<Map<String, dynamic>> mockCreateVisit({
     required double latitude,
     required double longitude,
+    String? clientName,
     String? notes,
+    String? visitingReason,
+    String? visitingArea,
+    String? photoPath,
   }) async {
     await Future.delayed(const Duration(milliseconds: 500));
     
@@ -122,26 +126,86 @@ class MockDataService {
     if (currentUserJson != null) {
       final currentUser = json.decode(currentUserJson);
       
+      // Use provided clientName or default
+      String visitClientName = clientName ?? 'Field Visit';
+      
       final visit = {
         'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'client_name': clientName,
+        'client_name': visitClientName,
+        'check_in_time': DateTime.now().toIso8601String(),
+        'check_out_time': DateTime.now().toIso8601String(), // Set same time for direct creation
+        'latitude': latitude,
+        'longitude': longitude,
+        'notes': notes,
+        'check_out_notes': null,
+        'visiting_reason': visitingReason,
+        'visiting_area': visitingArea,
+        'photo_path': photoPath,
+        'user_id': currentUser['id'],
+        'status': 'completed', // Direct creation is always completed
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      
+      // Add directly to visits history
+      final visitsJson = prefs.getString(_visitsKey);
+      List<dynamic> visits = visitsJson != null ? json.decode(visitsJson) : [];
+      visits.insert(0, visit);
+      await prefs.setString(_visitsKey, json.encode(visits));
+      
+      return {
+        'success': true,
+        'visit': visit,
+      };
+    }
+    
+    return {
+      'success': false,
+      'message': 'User not found'
+    };
+  }
+
+  // Mock Check-in
+  static Future<Map<String, dynamic>> mockCheckIn({
+    required double latitude,
+    required double longitude,
+    String? clientName,
+    String? notes,
+    String? visitingReason,
+    String? visitingArea,
+    String? photoPath,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    final prefs = await SharedPreferences.getInstance();
+    final currentUserJson = prefs.getString(_currentUserKey);
+    
+    if (currentUserJson != null) {
+      final currentUser = json.decode(currentUserJson);
+      
+      // Use provided clientName or default
+      String visitClientName = clientName ?? 'Field Visit';
+      
+      final visit = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'client_name': visitClientName,
         'check_in_time': DateTime.now().toIso8601String(),
         'check_out_time': null,
         'latitude': latitude,
         'longitude': longitude,
         'notes': notes,
         'check_out_notes': null,
+        'visiting_reason': visitingReason,
+        'visiting_area': visitingArea,
+        'photo_path': photoPath,
         'user_id': currentUser['id'],
         'status': 'active',
         'created_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       };
       
-      // Store visit
-      final visitsJson = prefs.getString(_visitsKey);
-      List<dynamic> visits = visitsJson != null ? json.decode(visitsJson) : [];
-      visits.insert(0, visit);
-      await prefs.setString(_visitsKey, json.encode(visits));
+      // Store active visit separately (not in history yet)
+      await prefs.setString(_activeVisitsKey, json.encode(visit));
       
       return {
         'success': true,
@@ -163,30 +227,38 @@ class MockDataService {
     await Future.delayed(const Duration(milliseconds: 500));
     
     final prefs = await SharedPreferences.getInstance();
-    final visitsJson = prefs.getString(_visitsKey);
     
-    if (visitsJson != null) {
-      List<dynamic> visits = json.decode(visitsJson);
-      final visitIndex = visits.indexWhere((v) => v['id'] == visitId);
+    // Get active visit
+    final activeVisitJson = prefs.getString(_activeVisitsKey);
+    if (activeVisitJson != null) {
+      final activeVisit = json.decode(activeVisitJson);
       
-      if (visitIndex != -1) {
-        visits[visitIndex]['check_out_time'] = DateTime.now().toIso8601String();
-        visits[visitIndex]['check_out_notes'] = notes;
-        visits[visitIndex]['status'] = 'completed';
-        visits[visitIndex]['updated_at'] = DateTime.now().toIso8601String();
+      if (activeVisit['id'] == visitId) {
+        // Update visit with check-out details
+        activeVisit['check_out_time'] = DateTime.now().toIso8601String();
+        activeVisit['check_out_notes'] = notes;
+        activeVisit['status'] = 'completed';
+        activeVisit['updated_at'] = DateTime.now().toIso8601String();
         
+        // Remove from active visits
+        await prefs.remove(_activeVisitsKey);
+        
+        // Add to completed visits history
+        final visitsJson = prefs.getString(_visitsKey);
+        List<dynamic> visits = visitsJson != null ? json.decode(visitsJson) : [];
+        visits.insert(0, activeVisit);
         await prefs.setString(_visitsKey, json.encode(visits));
         
         return {
           'success': true,
-          'visit': visits[visitIndex],
+          'visit': activeVisit,
         };
       }
     }
     
     return {
       'success': false,
-      'message': 'Visit not found'
+      'message': 'Active visit not found'
     };
   }
 
@@ -203,6 +275,21 @@ class MockDataService {
     }
     
     return [];
+  }
+
+  // Mock Get Current Active Visit
+  static Future<Visit?> mockGetCurrentActiveVisit() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    
+    final prefs = await SharedPreferences.getInstance();
+    final activeVisitJson = prefs.getString(_activeVisitsKey);
+    
+    if (activeVisitJson != null) {
+      final activeVisit = json.decode(activeVisitJson);
+      return Visit.fromJson(activeVisit);
+    }
+    
+    return null;
   }
 
   // Mock Log Location
@@ -340,75 +427,22 @@ class MockDataService {
     await prefs.remove(_currentUserKey);
   }
 
-  // Add Sample Data for Testing
-  static Future<void> addSampleData() async {
+  // Clear only visits and locations (keep user data)
+  static Future<void> clearVisitsAndLocations() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // Add sample visits
-    final sampleVisits = [
-      {
-        'id': '1',
-        'client_name': 'ABC Retail Store',
-        'check_in_time': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-        'check_out_time': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-        'latitude': 28.6139,
-        'longitude': 77.2090,
-        'notes': 'Product demo completed',
-        'check_out_notes': 'Order confirmed for next month',
-        'user_id': '1',
-        'status': 'completed',
-        'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-        'updated_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-      },
-      {
-        'id': '2',
-        'client_name': 'XYZ Corporation',
-        'check_in_time': DateTime.now().subtract(const Duration(hours: 4)).toIso8601String(),
-        'check_out_time': null,
-        'latitude': 28.6140,
-        'longitude': 77.2091,
-        'notes': 'Meeting in progress',
-        'check_out_notes': null,
-        'user_id': '1',
-        'status': 'active',
-        'created_at': DateTime.now().subtract(const Duration(hours: 4)).toIso8601String(),
-        'updated_at': DateTime.now().subtract(const Duration(hours: 4)).toIso8601String(),
-      },
-    ];
-    
-    await prefs.setString(_visitsKey, json.encode(sampleVisits));
-    
-    // Add sample location logs
-    final sampleLocations = [
-      {
-        'id': '1',
-        'latitude': 28.6139,
-        'longitude': 77.2090,
-        'accuracy': 5.0,
-        'battery': 85.0,
-        'logged_at': DateTime.now().subtract(const Duration(minutes: 30)).toIso8601String(),
-        'user_id': '1',
-      },
-      {
-        'id': '2',
-        'latitude': 28.6140,
-        'longitude': 77.2091,
-        'accuracy': 8.0,
-        'battery': 82.0,
-        'logged_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
-        'user_id': '1',
-      },
-      {
-        'id': '3',
-        'latitude': 28.6141,
-        'longitude': 77.2092,
-        'accuracy': 6.0,
-        'battery': 80.0,
-        'logged_at': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
-        'user_id': '1',
-      },
-    ];
-    
-    await prefs.setString(_locationsKey, json.encode(sampleLocations));
+    await prefs.remove(_visitsKey);
+    await prefs.remove(_locationsKey);
   }
+
+  // Ensure a user is logged in for visit creation
+  static Future<void> ensureUserLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentUserJson = prefs.getString(_currentUserKey);
+    
+    // If no user is logged in, log in a default user
+    if (currentUserJson == null) {
+      await mockLogin('saurabhvish@gmail.com', '123456');
+    }
+  }
+
 }

@@ -6,8 +6,6 @@ import '../providers/auth_provider.dart';
 import '../../screens/splash_screen.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../screens/home/dashboard_screen.dart';
-import '../../screens/visits/visit_checkin_screen.dart';
-import '../../screens/visits/visit_checkout_screen.dart';
 import '../../screens/visits/visit_history_screen.dart';
 import '../../screens/visits/visit_management_screen.dart';
 import '../../screens/visits/visit_details_screen.dart';
@@ -19,6 +17,7 @@ import '../../screens/test/mock_data_test_screen.dart';
 import '../../screens/leads/lead_list_screen.dart';
 import '../../screens/leads/lead_create_screen.dart';
 import '../../screens/leads/lead_details_screen.dart';
+import '../../screens/attendance/attendance_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -76,17 +75,7 @@ class AppRouter {
           return VisitDetailsScreen(visitId: visitId);
         },
       ),
-      GoRoute(
-        path: '/visit/checkin',
-        builder: (context, state) => const VisitCheckinScreen(),
-      ),
-      GoRoute(
-        path: '/visit/checkout/:visitId',
-        builder: (context, state) {
-          final visitId = state.pathParameters['visitId']!;
-          return VisitCheckoutScreen(visitId: visitId);
-        },
-      ),
+   
       GoRoute(
         path: '/visit/history',
         builder: (context, state) => const VisitHistoryScreen(),
@@ -131,6 +120,12 @@ class AppRouter {
             final leadId = state.pathParameters['leadId']!;
             return LeadDetailsScreen(leadId: leadId);
           },
+        ),
+        
+        // Attendance Route
+        GoRoute(
+          path: '/attendance',
+          builder: (context, state) => const AttendanceScreen(),
         ),
     ],
     errorBuilder: (context, state) => Scaffold(

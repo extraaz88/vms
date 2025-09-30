@@ -9,6 +9,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/visit_provider.dart';
 import 'core/providers/lead_provider.dart';
+import 'core/providers/target_provider.dart';
 import 'services/mock_data_service.dart';
 
 void main() async {
@@ -19,7 +20,10 @@ void main() async {
   
   // Initialize Mock Data
   await MockDataService.initializeMockData();
-  await MockDataService.addSampleData();
+  // Clear any existing dummy visits and locations (keep user data)
+  await MockDataService.clearVisitsAndLocations();
+  // Ensure a user is logged in for visit creation
+  await MockDataService.ensureUserLoggedIn();
   
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -47,6 +51,7 @@ class VMSApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => VisitProvider()),
         ChangeNotifierProvider(create: (_) => LeadProvider()),
+        ChangeNotifierProvider(create: (_) => TargetProvider()),
       ],
       builder: (context, child) {
         // Connect LocationProvider with VisitProvider for auto checkout

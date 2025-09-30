@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
 
 import '../../core/providers/visit_provider.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/visit_model.dart';
+import '../../services/geocoding_service.dart';
+import '../../widgets/app_logo.dart';
 
 class VisitHistoryScreen extends StatefulWidget {
   const VisitHistoryScreen({super.key});
@@ -27,7 +31,16 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Visit History'),
+        title: Row(
+          children: [
+            const AppLogo(
+              width: 24,
+              height: 24,
+            ),
+            const SizedBox(width: 8),
+            const Text('Visit History'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -159,7 +172,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                             ),
                           ),
                           Text(
-                            _formatDate(visit.checkInTime),
+                            _formatDate(visit.visitTime),
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: AppTheme.textSecondaryColor,
                             ),
@@ -190,35 +203,38 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                 
                 const SizedBox(height: 16),
                 
-                // Visit Details
+                // Visit Details Form Data
+                _buildVisitDetailsInfo(visit),
+                
+                const SizedBox(height: 16),
+                
+                // Visit Time
                 Row(
                   children: [
                     Expanded(
                       child: _buildDetailItem(
-                        'Check In',
-                        _formatTime(visit.checkInTime),
-                        Icons.login,
+                        'Visit Time',
+                        _formatTime(visit.visitTime),
+                        Icons.schedule,
                         AppTheme.primaryColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildDetailItem(
-                        'Check Out',
-                        visit.checkOutTime != null 
-                            ? _formatTime(visit.checkOutTime!)
-                            : 'N/A',
-                        Icons.logout,
+                        'Date',
+                        _formatDate(visit.visitTime),
+                        Icons.calendar_today,
                         AppTheme.secondaryColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: _buildDetailItem(
-                        'Duration',
-                        visit.durationString,
-                        Icons.access_time,
-                        AppTheme.accentColor,
+                        'Status',
+                        visit.isActive ? 'Active' : 'Completed',
+                        visit.isActive ? Icons.location_on : Icons.check_circle,
+                        visit.isActive ? AppTheme.warningColor : AppTheme.successColor,
                       ),
                     ),
                   ],
@@ -267,11 +283,33 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                       color: AppTheme.textSecondaryColor,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${visit.latitude.toStringAsFixed(4)}, ${visit.longitude.toStringAsFixed(4)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textSecondaryColor,
-                      ),
+                    FutureBuilder<String>(
+                      future: GeocodingService.getAreaName(visit.latitude, visit.longitude),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.textSecondaryColor,
+                              ),
+                            ),
+                          );
+                        }
+                        
+                        return Expanded(
+                          child: Text(
+                            snapshot.data ?? 'Location not available',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondaryColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -284,6 +322,214 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
     .animate()
     .fadeIn(duration: 600.ms, delay: (index * 100).ms)
     .slideY(begin: 0.2, end: 0);
+  }
+
+  Widget _buildVisitDetailsInfo(Visit visit) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.primaryColor.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Visit Details',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppTheme.primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          // Visiting Place
+          if (visit.visitingReason != null && visit.visitingReason!.isNotEmpty)
+            _buildInfoRow('Visiting Place', visit.visitingReason!),
+          
+          // Visiting Person (using notes field)
+          if (visit.notes != null && visit.notes!.isNotEmpty)
+            _buildInfoRow('Visiting Person', visit.notes!),
+          
+          // Visiting Area
+          if (visit.visitingArea != null && visit.visitingArea!.isNotEmpty)
+            _buildInfoRow('Visiting Area', visit.visitingArea!),
+          
+          // User
+          _buildInfoRow('User', context.read<AuthProvider>().user?.name ?? 'User'),
+          
+          // Photo
+          if (visit.photoPath != null && visit.photoPath!.isNotEmpty)
+            _buildPhotoInfo(visit.photoPath!),
+          
+          // Location
+          _buildLocationInfo(visit),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationInfo(Visit visit) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.location_on,
+            size: 16,
+            color: AppTheme.primaryColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: FutureBuilder<String>(
+              future: GeocodingService.getAreaName(visit.latitude, visit.longitude),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Row(
+                    children: [
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Loading location...',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondaryColor,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                
+                return Text(
+                  snapshot.data ?? 'Location not available',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textPrimaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoInfo(String photoPath) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.camera_alt,
+                size: 16,
+                color: AppTheme.primaryColor,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Visit Photo',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppTheme.primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            height: 200,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppTheme.primaryColor.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(photoPath),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 50,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondaryColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textPrimaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDetailItem(String label, String value, IconData icon, Color color) {
@@ -385,17 +631,14 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                     _buildDetailRow('Status', visit.isActive ? 'Active' : 'Completed'),
                   ]),
                   
-                  _buildDetailSection('Timing Information', [
-                    _buildDetailRow('Check In', _formatDateTime(visit.checkInTime)),
-                    _buildDetailRow('Check Out', visit.checkOutTime != null 
-                        ? _formatDateTime(visit.checkOutTime!)
-                        : 'Not completed'),
-                    _buildDetailRow('Duration', visit.durationString),
+                  _buildDetailSection('Visit Information', [
+                    _buildDetailRow('Visit Date', _formatDate(visit.visitTime)),
+                    _buildDetailRow('Visit Time', _formatTime(visit.visitTime)),
+                    _buildDetailRow('Status', visit.isActive ? 'Active' : 'Completed'),
                   ]),
                   
                   _buildDetailSection('Location Information', [
-                    _buildDetailRow('Latitude', visit.latitude.toStringAsFixed(6)),
-                    _buildDetailRow('Longitude', visit.longitude.toStringAsFixed(6)),
+                    _buildLocationDetailRow(visit),
                   ]),
                   
                   if (visit.notes != null && visit.notes!.isNotEmpty)
@@ -414,21 +657,6 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                       ),
                     ]),
                   
-                  if (visit.checkOutNotes != null && visit.checkOutNotes!.isNotEmpty)
-                    _buildDetailSection('Check-out Notes', [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.backgroundColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          visit.checkOutNotes!,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ]),
                   
                   const SizedBox(height: 20),
                 ],
@@ -455,6 +683,86 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
         ...children,
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildLocationDetailRow(Visit visit) {
+    return FutureBuilder<String>(
+      future: GeocodingService.getAreaName(visit.latitude, visit.longitude),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 120,
+                  child: Text(
+                    'Location',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppTheme.textSecondaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.primaryColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Loading location...',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.textSecondaryColor,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 120,
+                child: Text(
+                  'Location',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondaryColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  snapshot.data ?? 'Location not available',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textPrimaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -496,7 +804,4 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  String _formatDateTime(DateTime date) {
-    return '${_formatDate(date)} ${_formatTime(date)}';
-  }
 }

@@ -3,9 +3,12 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 import '../../core/providers/visit_provider.dart';
 import '../../core/providers/location_provider.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/custom_bottom_navigation.dart';
 import '../../services/geocoding_service.dart';
@@ -177,7 +180,14 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
           );
         },
       ),
-      bottomNavigationBar: const CustomBottomNavigation(currentIndex: 2),
+      bottomNavigationBar: Consumer<VisitProvider>(
+        builder: (context, visitProvider, child) {
+          return CustomBottomNavigation(
+            currentIndex: 2,
+            isCheckedIn: visitProvider.hasActiveVisit,
+          );
+        },
+      ),
     );
   }
 
@@ -452,12 +462,18 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
         ),
       );
 
-      // Create new visit
+      // Load saved visit form data
+      final formData = await _loadVisitFormData();
+      
+      // Create new visit with form data
       final success = await visitProvider.checkIn(
-        clientName: 'Field Visit', // You can customize this
         latitude: locationProvider.currentPosition!.latitude,
         longitude: locationProvider.currentPosition!.longitude,
-        notes: 'Check-in from mobile app',
+        clientName: formData['visitingPlace'],
+        notes: formData['visitingPerson'],
+        visitingReason: formData['visitingReason'],
+        visitingArea: formData['visitingArea'],
+        photoPath: formData['photoPath'],
       );
       
       if (!success) {
@@ -487,14 +503,15 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
     try {
       final visitProvider = context.read<VisitProvider>();
       
-      // Show loading
+      // Show loading with visit details saving message
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => _buildVisitDetailsSavingDialog(),
       );
+
+      // Simulate 2-second loading process for visit details saving
+      await Future.delayed(const Duration(seconds: 2));
 
       // Complete the visit
       final success = await visitProvider.checkOut(
@@ -523,6 +540,81 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
       if (mounted) Navigator.of(context).pop();
       _showErrorSnackBar('Check-out failed: ${e.toString()}');
     }
+  }
+
+  Widget _buildVisitDetailsSavingDialog() {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Animated Icon
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: const Icon(
+                Icons.save_rounded,
+                size: 32,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 20),
+            
+            // Title
+            Text(
+              'Saving Visit Details',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimaryColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            
+            // Subtitle
+            Text(
+              'Please wait while we save your visit information...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textSecondaryColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            
+            // Progress Indicator
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+              strokeWidth: 3,
+            ),
+            const SizedBox(height: 16),
+            
+            // Progress Text
+            Text(
+              'Processing visit data...',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondaryColor,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showSuccessSnackBar(String message) {
@@ -631,9 +723,14 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
   }
 
   Widget _buildAttendanceDetails(activeVisit) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return FutureBuilder<String>(
+      future: _getAreaNameForVisit(activeVisit),
+      builder: (context, snapshot) {
+        final areaName = snapshot.data ?? 'Loading location...';
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
         Text(
           'Attendance Details',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -681,25 +778,16 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
               _buildAttendanceRow(
                 icon: Icons.location_on_rounded,
                 title: 'Check-in Location',
-                value: '${activeVisit.latitude.toStringAsFixed(6)}, ${activeVisit.longitude.toStringAsFixed(6)}',
+                value: areaName,
                 color: AppTheme.primaryColor,
               ),
               const SizedBox(height: 16),
               _buildAttendanceRow(
                 icon: Icons.person_rounded,
-                title: 'Client',
-                value: activeVisit.clientName,
+                title: 'User',
+                value: context.read<AuthProvider>().user?.name ?? 'User',
                 color: AppTheme.secondaryColor,
               ),
-              if (activeVisit.notes?.isNotEmpty == true) ...[
-                const SizedBox(height: 16),
-                _buildAttendanceRow(
-                  icon: Icons.note_rounded,
-                  title: 'Notes',
-                  value: activeVisit.notes!,
-                  color: AppTheme.warningColor,
-                ),
-              ],
               const SizedBox(height: 16),
               // Working Duration
               _buildWorkingDuration(activeVisit),
@@ -708,6 +796,49 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
         ),
       ],
     );
+      },
+    );
+  }
+
+  Future<Map<String, String?>> _loadVisitFormData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final formDataJson = prefs.getString('visit_form_data');
+      
+      if (formDataJson != null) {
+        final formData = json.decode(formDataJson);
+        return {
+          'visitingPlace': formData['visitingPlace'] ?? '',
+          'visitingPerson': formData['visitingPerson'] ?? '',
+          'visitingReason': formData['visitingReason'] ?? '',
+          'visitingArea': formData['visitingArea'] ?? '',
+          'photoPath': formData['photoPath'] ?? '',
+        };
+      }
+    } catch (e) {
+      debugPrint('Error loading visit form data: $e');
+    }
+    
+    // Return empty data if no form data found
+    return {
+      'visitingPlace': '',
+      'visitingPerson': '',
+      'visitingReason': '',
+      'visitingArea': '',
+      'photoPath': '',
+    };
+  }
+
+  Future<String> _getAreaNameForVisit(activeVisit) async {
+    try {
+      final areaName = await GeocodingService.getAreaName(
+        activeVisit.latitude,
+        activeVisit.longitude,
+      );
+      return areaName;
+    } catch (e) {
+      return 'Location not available';
+    }
   }
 
   Widget _buildAttendanceRow({

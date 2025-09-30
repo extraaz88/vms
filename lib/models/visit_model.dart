@@ -7,6 +7,9 @@ class Visit {
   final double longitude;
   final String? notes;
   final String? checkOutNotes;
+  final String? visitingReason;
+  final String? visitingArea;
+  final String? photoPath;
   final String userId;
   final String status;
   final DateTime createdAt;
@@ -21,6 +24,9 @@ class Visit {
     required this.longitude,
     this.notes,
     this.checkOutNotes,
+    this.visitingReason,
+    this.visitingArea,
+    this.photoPath,
     required this.userId,
     this.status = 'active',
     required this.createdAt,
@@ -39,6 +45,9 @@ class Visit {
       longitude: double.parse(json['longitude'].toString()),
       notes: json['notes'],
       checkOutNotes: json['check_out_notes'],
+      visitingReason: json['visiting_reason'],
+      visitingArea: json['visiting_area'],
+      photoPath: json['photo_path'],
       userId: json['user_id'].toString(),
       status: json['status'] ?? 'active',
       createdAt: DateTime.parse(json['created_at']),
@@ -56,6 +65,9 @@ class Visit {
       'longitude': longitude,
       'notes': notes,
       'check_out_notes': checkOutNotes,
+      'visiting_reason': visitingReason,
+      'visiting_area': visitingArea,
+      'photo_path': photoPath,
       'user_id': userId,
       'status': status,
       'created_at': createdAt.toIso8601String(),
@@ -65,6 +77,9 @@ class Visit {
   
   // Computed properties
   bool get isActive => checkOutTime == null;
+  
+  // Visit time - for direct visits, this is the same as checkInTime
+  DateTime get visitTime => checkInTime;
   
   Duration? get duration {
     if (checkOutTime == null) return null;
@@ -94,6 +109,9 @@ class Visit {
     double? longitude,
     String? notes,
     String? checkOutNotes,
+    String? visitingReason,
+    String? visitingArea,
+    String? photoPath,
     String? userId,
     String? status,
     DateTime? createdAt,
@@ -108,6 +126,9 @@ class Visit {
       longitude: longitude ?? this.longitude,
       notes: notes ?? this.notes,
       checkOutNotes: checkOutNotes ?? this.checkOutNotes,
+      visitingReason: visitingReason ?? this.visitingReason,
+      visitingArea: visitingArea ?? this.visitingArea,
+      photoPath: photoPath ?? this.photoPath,
       userId: userId ?? this.userId,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,

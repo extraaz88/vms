@@ -75,19 +75,64 @@ class ApiService {
   
   // Visit APIs
   
-  // Check-in
-  Future<Map<String, dynamic>> checkIn({
-    required String clientName,
+  // Create visit directly (without check-in/check-out)
+  Future<Map<String, dynamic>> createVisit({
     required double latitude,
     required double longitude,
+    String? clientName,
     String? notes,
+    String? visitingReason,
+    String? visitingArea,
+    String? photoPath,
+  }) async {
+    if (_useMockData) {
+      return await MockDataService.mockCreateVisit(
+        latitude: latitude,
+        longitude: longitude,
+        clientName: clientName,
+        notes: notes,
+        visitingReason: visitingReason,
+        visitingArea: visitingArea,
+        photoPath: photoPath,
+      );
+    }
+    
+    final response = await http.post(
+      Uri.parse('$baseUrl/visits'),
+      headers: _getHeaders(),
+      body: json.encode({
+        'latitude': latitude,
+        'longitude': longitude,
+        if (clientName != null) 'client_name': clientName,
+        if (notes != null) 'notes': notes,
+        if (visitingReason != null) 'visiting_reason': visitingReason,
+        if (visitingArea != null) 'visiting_area': visitingArea,
+        if (photoPath != null) 'photo_path': photoPath,
+      }),
+    );
+    
+    return _handleResponse(response);
+  }
+
+  // Check-in
+  Future<Map<String, dynamic>> checkIn({
+    required double latitude,
+    required double longitude,
+    String? clientName,
+    String? notes,
+    String? visitingReason,
+    String? visitingArea,
+    String? photoPath,
   }) async {
     if (_useMockData) {
       return await MockDataService.mockCheckIn(
-        clientName: clientName,
         latitude: latitude,
         longitude: longitude,
+        clientName: clientName,
         notes: notes,
+        visitingReason: visitingReason,
+        visitingArea: visitingArea,
+        photoPath: photoPath,
       );
     }
     
@@ -95,10 +140,13 @@ class ApiService {
       Uri.parse('$baseUrl/visits/checkin'),
       headers: _getHeaders(),
       body: json.encode({
-        'client_name': clientName,
         'latitude': latitude,
         'longitude': longitude,
-        'notes': notes,
+        if (clientName != null) 'client_name': clientName,
+        if (notes != null) 'notes': notes,
+        if (visitingReason != null) 'visiting_reason': visitingReason,
+        if (visitingArea != null) 'visiting_area': visitingArea,
+        if (photoPath != null) 'photo_path': photoPath,
       }),
     );
     
@@ -145,6 +193,24 @@ class ApiService {
         .toList();
   }
   
+  // Get current active visit
+  Future<Visit?> getCurrentActiveVisit() async {
+    if (_useMockData) {
+      return await MockDataService.mockGetCurrentActiveVisit();
+    }
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/visits/current'),
+      headers: _getHeaders(),
+    );
+    
+    final data = _handleResponse(response);
+    if (data['visit'] != null) {
+      return Visit.fromJson(data['visit']);
+    }
+    return null;
+  }
+
   // Get visits by date range
   Future<List<Visit>> getVisitsByDateRange(DateTime startDate, DateTime endDate) async {
     final response = await http.get(

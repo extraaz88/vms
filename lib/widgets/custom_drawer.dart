@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/providers/auth_provider.dart';
 import '../core/theme/app_theme.dart';
+import 'app_logo.dart';
 
 class CustomDrawer extends StatelessWidget {
   const CustomDrawer({super.key});
@@ -39,9 +40,13 @@ class CustomDrawer extends StatelessWidget {
           ),
           child: Column(
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundColor: Colors.white.withOpacity(0.2),
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(40),
+                ),
                 child: user?.avatar != null
                     ? ClipOval(
                         child: Image.network(
@@ -51,7 +56,13 @@ class CustomDrawer extends StatelessWidget {
                           fit: BoxFit.cover,
                         ),
                       )
-                    : const Icon(Icons.person, size: 40, color: Colors.white),
+                    : const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: AppLogo(
+                          width: 56,
+                          height: 56,
+                        ),
+                      ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -77,7 +88,7 @@ class CustomDrawer extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  user?.role?.toUpperCase() ?? 'USER',
+                  (user?.role ?? 'user').toUpperCase(),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -112,7 +123,7 @@ class CustomDrawer extends StatelessWidget {
           _buildMenuItem(context,
               icon: Icons.history,
               title: 'Visit History',
-              route: '/visits/history'),
+              route: '/visit/history'),
           _buildMenuItem(context,
               icon: Icons.route,
               title: 'Journey Tracking',

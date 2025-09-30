@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 import '../../core/providers/visit_provider.dart';
+import '../../core/providers/target_provider.dart';
+import '../../core/providers/location_provider.dart';
 import '../../core/theme/app_theme.dart';
-import '../../models/visit_model.dart';
-import '../../widgets/visit_management_card.dart';
-import '../../widgets/checkin_checkout_slider.dart';
+import '../../widgets/visit_details_form.dart';
 import '../../widgets/custom_bottom_navigation.dart';
+import '../../widgets/app_logo.dart';
 
 class VisitManagementScreen extends StatefulWidget {
   const VisitManagementScreen({super.key});
@@ -18,12 +22,42 @@ class VisitManagementScreen extends StatefulWidget {
 }
 
 class _VisitManagementScreenState extends State<VisitManagementScreen> {
+  String? _visitPlace;
+  String? _visitPerson;
+  String? _visitReason;
+  String? _visitArea;
+  File? _visitPhoto;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<VisitProvider>().loadVisits();
+      context.read<VisitProvider>().initializeVisits();
+      _loadFormDataFromPrefs(); // Load saved form data
     });
+  }
+
+
+  // Load form data from SharedPreferences
+  Future<void> _loadFormDataFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final formDataJson = prefs.getString('visit_form_data');
+      if (formDataJson != null) {
+        final formData = json.decode(formDataJson);
+        setState(() {
+          _visitPlace = formData['visitingPlace'] ?? '';
+          _visitPerson = formData['visitingPerson'] ?? '';
+          _visitReason = formData['visitingReason'] ?? '';
+          _visitArea = formData['visitingArea'] ?? '';
+          if (formData['photoPath'] != null && formData['photoPath'].isNotEmpty) {
+            _visitPhoto = File(formData['photoPath']);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading form data: $e');
+    }
   }
 
   @override
@@ -31,12 +65,21 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Visit Management'),
+        title: Row(
+          children: [
+            const AppLogo(
+              width: 24,
+              height: 24,
+            ),
+            const SizedBox(width: 8),
+            const Text('Visit Management'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              context.read<VisitProvider>().loadVisits();
+              context.read<VisitProvider>().initializeVisits();
             },
           ),
           IconButton(
@@ -47,10 +90,8 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       ),
       body: Consumer<VisitProvider>(
         builder: (context, visitProvider, child) {
-          final activeVisit = visitProvider.activeVisit;
-          
           return RefreshIndicator(
-            onRefresh: () => visitProvider.loadVisits(),
+            onRefresh: () => visitProvider.initializeVisits(),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -64,19 +105,10 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
                   
                   const SizedBox(height: 24),
                   
-                  // Current Visit Status Card
-                  if (activeVisit != null)
-                    _buildActiveVisitCard(activeVisit)
-                        .animate()
-                        .fadeIn(duration: 600.ms, delay: 200.ms)
-                        .slideY(begin: 0.2, end: 0),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Check-in/Check-out Slider
-                  _buildCheckinCheckoutSection(activeVisit)
+                  // Visit Details Form
+                  _buildVisitDetailsForm()
                       .animate()
-                      .fadeIn(duration: 600.ms, delay: 400.ms)
+                      .fadeIn(duration: 600.ms, delay: 200.ms)
                       .slideY(begin: 0.2, end: 0),
                   
                   const SizedBox(height: 24),
@@ -84,15 +116,7 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
                   // Quick Actions
                   _buildQuickActions()
                       .animate()
-                      .fadeIn(duration: 600.ms, delay: 600.ms)
-                      .slideY(begin: 0.2, end: 0),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Recent Visits Preview
-                  _buildRecentVisitsPreview(visitProvider)
-                      .animate()
-                      .fadeIn(duration: 600.ms, delay: 800.ms)
+                      .fadeIn(duration: 600.ms, delay: 400.ms)
                       .slideY(begin: 0.2, end: 0),
                 ],
               ),
@@ -100,7 +124,14 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           );
         },
       ),
-      bottomNavigationBar: const CustomBottomNavigation(currentIndex: 1),
+      bottomNavigationBar: Consumer<VisitProvider>(
+        builder: (context, visitProvider, child) {
+          return CustomBottomNavigation(
+            currentIndex: 1,
+            isCheckedIn: visitProvider.hasActiveVisit,
+          );
+        },
+      ),
     );
   }
 
@@ -165,57 +196,135 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
     );
   }
 
-  Widget _buildActiveVisitCard(Visit activeVisit) {
-    return VisitManagementCard(
-      visit: activeVisit,
-      onTap: () => context.push('/visit/details/${activeVisit.id}'),
+  Widget _buildVisitDetailsForm() {
+    return VisitDetailsForm(
+      initialPlace: _visitPlace,
+      initialPerson: _visitPerson,
+      initialReason: _visitReason,
+      initialArea: _visitArea,
+      initialPhoto: _visitPhoto,
+      onSubmit: (place, person, reason, area, photo) async {
+        setState(() {
+          _visitPlace = place;
+          _visitPerson = person;
+          _visitReason = reason;
+          _visitArea = area;
+          _visitPhoto = photo;
+        });
+        
+        // Create visit directly using the new createVisit method
+        await _createVisitDirectly(place, person, reason, area, photo);
+      },
+      onCancel: () {
+        setState(() {
+          _visitPlace = null;
+          _visitPerson = null;
+          _visitReason = null;
+          _visitArea = null;
+          _visitPhoto = null;
+        });
+      },
     );
   }
 
-  Widget _buildCheckinCheckoutSection(Visit? activeVisit) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+  Future<void> _createVisitDirectly(String place, String person, String reason, String? area, File? photo) async {
+    try {
+      final visitProvider = context.read<VisitProvider>();
+      final locationProvider = context.read<LocationProvider>();
+      
+      if (locationProvider.currentPosition == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location not available. Please enable location services.'),
+            backgroundColor: AppTheme.errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                activeVisit != null ? Icons.location_on : Icons.add_location,
-                color: AppTheme.primaryColor,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                activeVisit != null ? 'Active Visit' : 'Start New Visit',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+        );
+        return;
+      }
+
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Create visit directly
+      final success = await visitProvider.createVisit(
+        latitude: locationProvider.currentPosition!.latitude,
+        longitude: locationProvider.currentPosition!.longitude,
+        clientName: place,
+        notes: person,
+        visitingReason: reason,
+        visitingArea: area,
+        photoPath: photo?.path,
+      );
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
+      if (success) {
+        // Clear form data after successful creation
+        setState(() {
+          _visitPlace = null;
+          _visitPerson = null;
+          _visitReason = null;
+          _visitArea = null;
+          _visitPhoto = null;
+        });
+        
+        // Clear saved form data
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('visit_form_data');
+        
+        // Increment target counter
+        context.read<TargetProvider>().incrementSubmission();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Visit created successfully!'),
+            backgroundColor: AppTheme.successColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-          const SizedBox(height: 16),
-          CheckinCheckoutSlider(
-            activeVisit: activeVisit,
-            onCheckIn: () => context.push('/visit/checkin'),
-            onCheckOut: activeVisit != null 
-                ? () => context.push('/visit/checkout/${activeVisit.id}')
-                : null,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(visitProvider.error ?? 'Visit creation failed'),
+            backgroundColor: AppTheme.errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-        ],
-      ),
-    );
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating visit: $e'),
+          backgroundColor: AppTheme.errorColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildQuickActions() {
@@ -337,145 +446,6 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildRecentVisitsPreview(VisitProvider visitProvider) {
-    final recentVisits = visitProvider.visits.take(3).toList();
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Recent Visits',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            TextButton(
-              onPressed: () => context.push('/visit/history'),
-              child: const Text('View All'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (recentVisits.isEmpty)
-          _buildEmptyState()
-        else
-          ...recentVisits.map((visit) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildVisitPreviewCard(visit),
-          )),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.3),
-          style: BorderStyle.solid,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.location_off,
-            size: 48,
-            color: Colors.grey.withOpacity(0.6),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No visits yet',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.grey.withOpacity(0.8),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Start your first visit to see it here',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.grey.withOpacity(0.6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVisitPreviewCard(Visit visit) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: visit.isActive 
-              ? AppTheme.successColor.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.2),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: visit.isActive 
-                  ? AppTheme.successColor.withOpacity(0.1)
-                  : AppTheme.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              visit.isActive ? Icons.location_on : Icons.location_off,
-              color: visit.isActive ? AppTheme.successColor : AppTheme.primaryColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  visit.clientName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  visit.status.toUpperCase(),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: visit.isActive ? AppTheme.successColor : AppTheme.textSecondaryColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.arrow_forward_ios,
-            size: 16,
-            color: Colors.grey.withOpacity(0.6),
-          ),
-        ],
       ),
     );
   }

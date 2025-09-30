@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/providers/auth_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../widgets/app_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -129,10 +130,13 @@ class _SplashScreenState extends State<SplashScreen>
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.location_on,
-                              size: 60,
-                              color: AppTheme.primaryColor,
+                            child: const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: AppLogo(
+                                width: 88,
+                                height: 88,
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         );

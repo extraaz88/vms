@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/providers/visit_provider.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/theme/app_theme.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -394,9 +395,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ),
           const SizedBox(height: 12),
           
-          // Client Name
+          // User Name
           Text(
-            visit.clientName,
+            context.read<AuthProvider>().user?.name ?? 'User',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),

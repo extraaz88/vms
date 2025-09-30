@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/location_provider.dart';
+import '../../core/providers/visit_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_bottom_navigation.dart';
@@ -68,7 +69,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              const CustomBottomNavigation(currentIndex: 3),
+              Consumer<VisitProvider>(
+                builder: (context, visitProvider, child) {
+                  return CustomBottomNavigation(
+                    currentIndex: 3,
+                    isCheckedIn: visitProvider.hasActiveVisit,
+                  );
+                },
+              ),
             ],
           );
         },
