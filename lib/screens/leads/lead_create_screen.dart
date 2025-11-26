@@ -8,6 +8,11 @@ import '../../core/theme/app_theme.dart';
 import '../../models/lead_model.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
+import '../../utils/validation_utils.dart';
+import '../../utils/responsive_utils.dart';
+import '../../utils/auth_helper.dart';
+import '../../services/lead_dropdown_service.dart';
+import 'package:flutter/services.dart';
 
 class LeadCreateScreen extends StatefulWidget {
   const LeadCreateScreen({super.key});
@@ -32,12 +37,17 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
   final _countryController = TextEditingController();
   final _opportunityAmountController = TextEditingController();
   final _campaignController = TextEditingController();
-  final _assignedUserController = TextEditingController();
+  // final _assignedUserController = TextEditingController(); // Commented out - assigned user field removed
   final _descriptionController = TextEditingController();
 
-  LeadStatus _selectedStatus = LeadStatus.newLead;
-  LeadSource _selectedSource = LeadSource.coldCalling;
+  String _selectedStatus = 'New';
+  String _selectedSource = 'Cold Calling';
   String _selectedIndustry = 'Sales';
+
+  // API data
+  List<String> _statusList = [];
+  Map<String, String> _sourceMap = {};
+  bool _isLoadingDropdowns = true;
 
   final List<String> _industries = [
     'Sales',
@@ -48,9 +58,15 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
     'Manufacturing',
     'Retail',
     'Real Estate',
-    'Marketing',
     'Consulting',
+    'Other',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDropdownData();
+  }
 
   @override
   void dispose() {
@@ -68,16 +84,131 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
     _countryController.dispose();
     _opportunityAmountController.dispose();
     _campaignController.dispose();
-    _assignedUserController.dispose();
+    // _assignedUserController.dispose(); // Commented out - assigned user field removed
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  // Load dropdown data from API
+  Future<void> _loadDropdownData() async {
+    try {
+      print('\n📋 LEAD CREATE SCREEN: Loading dropdown data...');
+
+      setState(() {
+        _isLoadingDropdowns = true;
+      });
+
+      // Clear cache to get fresh data from backend
+      LeadDropdownService.clearCache();
+      print('🗑️ Cache cleared - fetching fresh data from backend');
+
+      // Get authenticated user ID (created_by)
+      final createdBy = await AuthHelper.getAuthenticatedUserId();
+
+      print('🔑 Lead Create - Authenticated User ID (created_by): $createdBy');
+
+      // Load status and source data in parallel
+      final results = await Future.wait([
+        LeadDropdownService.getLeadStatusList(),
+        LeadDropdownService.getLeadSourceMap(createdBy),
+      ]);
+
+      print('\n✅ DROPDOWN DATA LOADED:');
+      print('Status List: ${results[0]}');
+      print('Source Map: ${results[1]}');
+      print(
+        'Source Map Values: ${(results[1] as Map<String, String>).values.toList()}',
+      );
+
+      setState(() {
+        _statusList = results[0] as List<String>;
+        _sourceMap = results[1] as Map<String, String>;
+
+        print('\n📊 SETTING DROPDOWN VALUES IN STATE:');
+        print('Status List Count: ${_statusList.length}');
+        print('Status List Items: $_statusList');
+        print('Source Map Count: ${_sourceMap.length}');
+        print('Source Map Items: $_sourceMap');
+        print('Source Map Values: ${_sourceMap.values.toList()}');
+
+        // Set default values from API data
+        if (_statusList.isNotEmpty) {
+          _selectedStatus = _statusList.first;
+          print('✅ Default Status Set: $_selectedStatus');
+          print('✅ All Status Values in Dropdown: $_statusList');
+        } else {
+          print('⚠️ Status List is EMPTY! Using fallback.');
+          _statusList = [
+            'New',
+            'Assigned',
+            'In Process',
+            'Converted',
+            'Recycled',
+            'Dead',
+          ];
+          _selectedStatus = 'New';
+        }
+
+        if (_sourceMap.isNotEmpty) {
+          _selectedSource = _sourceMap.values.first;
+          print('✅ Default Source Set: $_selectedSource');
+          print(
+            '✅ All Source Values in Dropdown: ${_sourceMap.values.toList()}',
+          );
+        } else {
+          print('⚠️ Source Map is EMPTY! Using fallback.');
+          _sourceMap = {
+            "1": "Website",
+            "2": "Social media",
+            "3": "Google",
+            "4": "Refferal",
+            "5": "partner",
+            "8": "Other",
+          };
+          _selectedSource = 'Website';
+        }
+
+        _isLoadingDropdowns = false;
+        print('\n✅ Dropdown loading complete!');
+        print('🔍 Final _statusList value: $_statusList');
+        print('🔍 _isLoadingDropdowns: $_isLoadingDropdowns\n');
+      });
+    } catch (e, stackTrace) {
+      print('\n❌ ERROR LOADING DROPDOWNS:');
+      print('Error: $e');
+      print('Stack Trace: $stackTrace');
+
+      setState(() {
+        // Use fallback data on error
+        _statusList = [
+          'New',
+          'Assigned',
+          'In Process',
+          'Converted',
+          'Recycled',
+          'Dead',
+        ];
+        _sourceMap = {
+          "1": "Cold Calling",
+          "2": "Referral",
+          "3": "contact",
+          "4": "blueprint",
+          "5": "partner",
+        };
+        _selectedStatus = 'New';
+        _selectedSource = 'Cold Calling';
+        _isLoadingDropdowns = false;
+      });
+
+      print('⚠️ Using fallback dropdown data\n');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create New Lead'),
+        title: const Text('Create Lead'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -87,22 +218,22 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.primaryColor,
-              AppTheme.secondaryColor,
-            ],
+            colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: ResponsiveUtils.getResponsivePadding(context),
             child: Form(
               key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 children: [
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  _buildForm(),
+                  _buildResponsiveHeader(context),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  _buildResponsiveForm(context),
                 ],
               ),
             ),
@@ -112,16 +243,18 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildResponsiveHeader(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: ResponsiveUtils.getResponsivePadding(context),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(
+          ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            blurRadius: ResponsiveUtils.getResponsiveElevation(context, 10),
             offset: const Offset(0, 4),
           ),
         ],
@@ -129,334 +262,644 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
       child: Column(
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: ResponsiveUtils.getResponsiveIconSize(context, 60),
+            height: ResponsiveUtils.getResponsiveIconSize(context, 60),
             decoration: BoxDecoration(
               color: AppTheme.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 30),
+              ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.person_add,
-              size: 30,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 30),
               color: AppTheme.primaryColor,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
           Text(
             'Create New Lead',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppTheme.textPrimaryColor,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 24),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
           Text(
-            'Fill in the details to create a new lead',
+            'Fill in the details below to create a new lead',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppTheme.textSecondaryColor,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
             ),
             textAlign: TextAlign.center,
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 600.ms)
-        .slideY(begin: -0.2, end: 0);
+    ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.2, end: 0);
   }
 
-  Widget _buildForm() {
+  Widget _buildResponsiveForm(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          padding: ResponsiveUtils.getResponsivePadding(context),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(
+              ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: ResponsiveUtils.getResponsiveElevation(context, 10),
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('Personal Information'),
-          const SizedBox(height: 16),
-          _buildPersonalInfoFields(),
-          
-          const SizedBox(height: 24),
-          _buildSectionTitle('Address Information'),
-          const SizedBox(height: 16),
-          _buildAddressFields(),
-          
-          const SizedBox(height: 24),
-          _buildSectionTitle('Details'),
-          const SizedBox(height: 16),
-          _buildDetailsFields(),
-          
-          const SizedBox(height: 24),
-          _buildSectionTitle('Description'),
-          const SizedBox(height: 16),
-          _buildDescriptionField(),
-          
-          const SizedBox(height: 32),
-          _buildActionButtons(),
-        ],
-      ),
-    )
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildResponsiveSectionTitle(context, 'Personal Information'),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+              _buildResponsivePersonalInfoFields(context),
+
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+              ),
+              _buildResponsiveSectionTitle(context, 'Address Information'),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+              _buildResponsiveAddressFields(context),
+
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+              ),
+              _buildResponsiveSectionTitle(context, 'Details'),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+              _buildResponsiveDetailsFields(context),
+
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+              ),
+              _buildResponsiveSectionTitle(context, 'Description'),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+              _buildResponsiveDescriptionField(context),
+
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 2,
+              ),
+              _buildResponsiveActionButtons(context),
+            ],
+          ),
+        )
         .animate()
         .fadeIn(duration: 600.ms, delay: 200.ms)
         .slideY(begin: 0.2, end: 0);
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildResponsiveSectionTitle(BuildContext context, String title) {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.bold,
         color: AppTheme.primaryColor,
+        fontSize: ResponsiveUtils.getResponsiveFontSize(context, 18),
       ),
     );
   }
 
-  Widget _buildPersonalInfoFields() {
+  Widget _buildResponsivePersonalInfoFields(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                controller: _nameController,
-                label: 'Name',
-                hint: 'Enter Name',
-                prefixIcon: const Icon(Icons.person),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter name';
-                  }
-                  return null;
-                },
+        // Name and Account Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  CustomTextField(
+                    controller: _nameController,
+                    label: 'Name',
+                    hint: 'Enter Name',
+                    prefixIcon: const Icon(Icons.person),
+                    validator: ValidationUtils.validateName,
+                  ),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  CustomTextField(
+                    controller: _accountController,
+                    label: 'Account',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.account_balance),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _nameController,
+                      label: 'Name',
+                      hint: 'Enter Name',
+                      prefixIcon: const Icon(Icons.person),
+                      validator: ValidationUtils.validateName,
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _accountController,
+                      label: 'Account',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.account_balance),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _accountController,
-                label: 'Account',
-                hint: '--',
-                prefixIcon: const Icon(Icons.account_balance),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // Company and Email Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  // CustomTextField(
+                  //   controller: _companyController,
+                  //   label: 'Company',
+                  //   hint: '--',
+                  //   prefixIcon: const Icon(Icons.business),
+                  // ),
+                  // SizedBox(
+                  //   height: ResponsiveUtils.getResponsiveSpacing(context),
+                  // ),
+                  CustomTextField(
+                    controller: _emailController,
+                    label: 'Email',
+                    hint: 'Enter Email',
+                    prefixIcon: const Icon(Icons.email),
+                    keyboardType: TextInputType.emailAddress,
+                    // validator: ValidationUtils.validateEmail,
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _companyController,
+                      label: 'Company',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.business),
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _emailController,
+                      label: 'Email',
+                      hint: 'Enter Email',
+                      prefixIcon: const Icon(Icons.email),
+                      keyboardType: TextInputType.emailAddress,
+                      // validator: ValidationUtils.validateEmail,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                controller: _companyController,
-                label: 'Company',
-                hint: 'Enter Company',
-                prefixIcon: const Icon(Icons.business),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // Phone and Title Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  CustomTextField(
+                    controller: _phoneController,
+                    label: 'Phone',
+                    hint: 'Enter 10 digit phone number',
+                    prefixIcon: const Icon(Icons.phone),
+                    keyboardType: TextInputType.number,
+                    validator: ValidationUtils.validatePhone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                    ],
+                    maxLength: 10,
+                  ),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  CustomTextField(
+                    controller: _titleController,
+                    label: 'Title',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.work),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _phoneController,
+                      label: 'Phone',
+                      hint: 'Enter 10 digit phone number',
+                      prefixIcon: const Icon(Icons.phone),
+                      keyboardType: TextInputType.number,
+                      validator: ValidationUtils.validatePhone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      maxLength: 10,
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _titleController,
+                      label: 'Title',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.work),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _emailController,
-                label: 'Email',
-                hint: 'Enter Email',
-                prefixIcon: const Icon(Icons.email),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter email';
-                  }
-                  return null;
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                controller: _phoneController,
-                label: 'Phone',
-                hint: 'Enter Phone',
-                prefixIcon: const Icon(Icons.phone),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter phone';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _titleController,
-                label: 'Title',
-                hint: 'Enter Title',
-                prefixIcon: const Icon(Icons.work),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // Website Row
         CustomTextField(
           controller: _websiteController,
           label: 'Website',
-          hint: 'Enter Website',
+          hint: '--',
           prefixIcon: const Icon(Icons.web),
+          keyboardType: TextInputType.url,
+          // validator: ValidationUtils.validateWebsite,
         ),
       ],
     );
   }
 
-  Widget _buildAddressFields() {
+  Widget _buildResponsiveAddressFields(BuildContext context) {
     return Column(
       children: [
         CustomTextField(
           controller: _addressController,
           label: 'Address',
-          hint: 'Address',
+          hint: '--',
           prefixIcon: const Icon(Icons.location_on),
+          validator: ValidationUtils.validateAddress,
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                controller: _cityController,
-                label: 'City',
-                hint: 'City',
-                prefixIcon: const Icon(Icons.location_city),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // City, State Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  CustomTextField(
+                    controller: _cityController,
+                    label: 'City',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.location_city),
+                  ),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  CustomTextField(
+                    controller: _stateController,
+                    label: 'State',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.map),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _cityController,
+                      label: 'City',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.location_city),
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _stateController,
+                      label: 'State',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.map),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _stateController,
-                label: 'State',
-                hint: 'State',
-                prefixIcon: const Icon(Icons.map),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // Postal Code and Country Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  CustomTextField(
+                    controller: _postalCodeController,
+                    label: 'Postal Code',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.local_post_office),
+                    keyboardType: TextInputType.number,
+                  ),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  CustomTextField(
+                    controller: _countryController,
+                    label: 'Country',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.public),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _postalCodeController,
+                      label: 'Postal Code',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.local_post_office),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _countryController,
+                      label: 'Country',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.public),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                controller: _postalCodeController,
-                label: 'Postal Code',
-                hint: 'Postal Code',
-                prefixIcon: const Icon(Icons.local_post_office),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _countryController,
-                label: 'Country',
-                hint: 'Country',
-                prefixIcon: const Icon(Icons.public),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
 
-  Widget _buildDetailsFields() {
+  Widget _buildResponsiveDetailsFields(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildDropdownField(
-                label: 'Status',
-                value: _selectedStatus.displayName,
-                onTap: () => _showStatusPicker(),
+        // Status and Source Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  _buildResponsiveDropdownField(
+                    context,
+                    label: 'Status',
+                    value: _isLoadingDropdowns ? 'Loading...' : _selectedStatus,
+                    onTap: _isLoadingDropdowns
+                        ? null
+                        : () => _showStatusPicker(),
+                  ),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  _buildResponsiveDropdownField(
+                    context,
+                    label: 'Source',
+                    value: _isLoadingDropdowns ? 'Loading...' : _selectedSource,
+                    onTap: _isLoadingDropdowns
+                        ? null
+                        : () => _showSourcePicker(),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: _buildResponsiveDropdownField(
+                      context,
+                      label: 'Status',
+                      value: _isLoadingDropdowns
+                          ? 'Loading...'
+                          : _selectedStatus,
+                      onTap: _isLoadingDropdowns
+                          ? null
+                          : () => _showStatusPicker(),
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: _buildResponsiveDropdownField(
+                      context,
+                      label: 'Source',
+                      value: _isLoadingDropdowns
+                          ? 'Loading...'
+                          : _selectedSource,
+                      onTap: _isLoadingDropdowns
+                          ? null
+                          : () => _showSourcePicker(),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDropdownField(
-                label: 'Source',
-                value: _selectedSource.displayName,
-                onTap: () => _showSourcePicker(),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // Opportunity Amount and Campaign Row
+        ResponsiveUtils.isMobile(context)
+            ? Column(
+                children: [
+                  CustomTextField(
+                    controller: _opportunityAmountController,
+                    label: 'Opportunity Amount',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.attach_money),
+                    keyboardType: TextInputType.number,
+                    // validator: ValidationUtils.validateAmount,
+                  ),
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  CustomTextField(
+                    controller: _campaignController,
+                    label: 'Campaign',
+                    hint: '--',
+                    prefixIcon: const Icon(Icons.campaign),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _opportunityAmountController,
+                      label: 'Opportunity Amount',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.attach_money),
+                      keyboardType: TextInputType.number,
+                      // validator: ValidationUtils.validateAmount,
+                    ),
+                  ),
+                  SizedBox(
+                    width: ResponsiveUtils.getResponsiveSpacing(context),
+                  ),
+                  Expanded(
+                    child: CustomTextField(
+                      controller: _campaignController,
+                      label: 'Campaign',
+                      hint: '--',
+                      prefixIcon: const Icon(Icons.campaign),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+        // Industry Row (Assigned User field commented out)
+        _buildResponsiveDropdownField(
+          context,
+          label: 'Industry',
+          value: _selectedIndustry,
+          onTap: () => _showIndustryPicker(),
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: CustomTextField(
-                controller: _opportunityAmountController,
-                label: 'Opportunity Amount',
-                hint: '0.00',
-                prefixIcon: const Icon(Icons.attach_money),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _campaignController,
-                label: 'Campaign',
-                hint: '--',
-                prefixIcon: const Icon(Icons.campaign),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildDropdownField(
-                label: 'Industry',
-                value: _selectedIndustry,
-                onTap: () => _showIndustryPicker(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: CustomTextField(
-                controller: _assignedUserController,
-                label: 'Assign User',
-                hint: '--',
-                prefixIcon: const Icon(Icons.person_pin),
-              ),
-            ),
-          ],
-        ),
+        // Assigned User field commented out
+        // ResponsiveUtils.isMobile(context)
+        //     ? Column(
+        //         children: [
+        //           _buildResponsiveDropdownField(
+        //             context,
+        //             label: 'Industry',
+        //             value: _selectedIndustry,
+        //             onTap: () => _showIndustryPicker(),
+        //           ),
+        //           SizedBox(
+        //             height: ResponsiveUtils.getResponsiveSpacing(context),
+        //           ),
+        //           CustomTextField(
+        //             controller: _assignedUserController,
+        //             label: 'Assigned User',
+        //             hint: '--',
+        //             prefixIcon: const Icon(Icons.person_pin),
+        //           ),
+        //         ],
+        //       )
+        //     : Row(
+        //         children: [
+        //           Expanded(
+        //             child: _buildResponsiveDropdownField(
+        //               context,
+        //               label: 'Industry',
+        //               value: _selectedIndustry,
+        //               onTap: () => _showIndustryPicker(),
+        //             ),
+        //           ),
+        //           SizedBox(
+        //             width: ResponsiveUtils.getResponsiveSpacing(context),
+        //           ),
+        //           Expanded(
+        //             child: CustomTextField(
+        //               controller: _assignedUserController,
+        //               label: 'Assigned User',
+        //               hint: '--',
+        //               prefixIcon: const Icon(Icons.person_pin),
+        //             ),
+        //           ),
+        //         ],
+        //       ),
       ],
     );
   }
 
-  Widget _buildDropdownField({
+  Widget _buildResponsiveDescriptionField(BuildContext context) {
+    return TextFormField(
+      controller: _descriptionController,
+      decoration: InputDecoration(
+        labelText: 'Description',
+        hintText: 'Enter lead description',
+        labelStyle: TextStyle(
+          fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+        ),
+        hintStyle: TextStyle(
+          fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(
+            ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+          ),
+        ),
+        alignLabelWithHint: true,
+      ),
+      style: TextStyle(
+        fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+      ),
+      maxLines: 4,
+      // validator: ValidationUtils.validateNotes,
+    );
+  }
+
+  Widget _buildResponsiveActionButtons(BuildContext context) {
+    return ResponsiveUtils.isMobile(context)
+        ? Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: CustomButton(
+                  text: 'Create Lead',
+                  onPressed: _createLead,
+                  backgroundColor: AppTheme.primaryColor,
+                  textColor: Colors.white,
+                ),
+              ),
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+              SizedBox(
+                width: double.infinity,
+                child: CustomButton(
+                  text: 'Cancel',
+                  onPressed: () => context.pop(),
+                  backgroundColor: Colors.grey.shade300,
+                  textColor: Colors.black87,
+                ),
+              ),
+            ],
+          )
+        : Row(
+            children: [
+              Expanded(
+                child: CustomButton(
+                  text: 'Cancel',
+                  onPressed: () => context.pop(),
+                  backgroundColor: Colors.grey.shade300,
+                  textColor: Colors.black87,
+                ),
+              ),
+              SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
+              Expanded(
+                child: CustomButton(
+                  text: 'Create Lead',
+                  onPressed: _createLead,
+                  backgroundColor: AppTheme.primaryColor,
+                  textColor: Colors.white,
+                ),
+              ),
+            ],
+          );
+  }
+
+  Widget _buildResponsiveDropdownField(
+    BuildContext context, {
     required String label,
     required String value,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: ResponsiveUtils.getResponsiveSpacing(context),
+          vertical: ResponsiveUtils.getResponsiveSpacing(context),
+        ),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(
+            ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,18 +908,29 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppTheme.textSecondaryColor,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(
+              height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+            ),
             Row(
               children: [
                 Expanded(
                   child: Text(
                     value,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: ResponsiveUtils.getResponsiveFontSize(
+                        context,
+                        14,
+                      ),
+                    ),
                   ),
                 ),
-                const Icon(Icons.arrow_drop_down),
+                Icon(
+                  Icons.arrow_drop_down,
+                  size: ResponsiveUtils.getResponsiveIconSize(context, 20),
+                ),
               ],
             ),
           ],
@@ -485,65 +939,20 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
     );
   }
 
-  Widget _buildDescriptionField() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Description',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSecondaryColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Enter Description',
-              border: InputBorder.none,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: CustomButton(
-            text: 'Cancel',
-            onPressed: () => context.pop(),
-            backgroundColor: Colors.grey.shade300,
-            textColor: Colors.black87,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: CustomButton(
-            text: 'Create Lead',
-            onPressed: _createLead,
-            backgroundColor: AppTheme.primaryColor,
-            textColor: Colors.white,
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showStatusPicker() {
+    print('\n🎯 STATUS DROPDOWN CLICKED!');
+    print('Current _statusList: $_statusList');
+    print('Current _statusList length: ${_statusList.length}');
+    print('Building dropdown with these values...\n');
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: ResponsiveUtils.getResponsivePadding(context),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -551,19 +960,38 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
               'Select Status',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
               ),
             ),
-            const SizedBox(height: 16),
-            ...LeadStatus.values.map((status) => ListTile(
-              title: Text(status.displayName),
-              selected: status == _selectedStatus,
-              onTap: () {
-                setState(() {
-                  _selectedStatus = status;
-                });
-                Navigator.pop(context);
-              },
-            )),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: _statusList
+                      .map(
+                        (status) => ListTile(
+                          title: Text(
+                            status,
+                            style: TextStyle(
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                context,
+                                16,
+                              ),
+                            ),
+                          ),
+                          selected: status == _selectedStatus,
+                          onTap: () {
+                            setState(() {
+                              _selectedStatus = status;
+                            });
+                            Navigator.pop(context);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -571,10 +999,27 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
   }
 
   void _showSourcePicker() {
+    print('\n🎯 SOURCE DROPDOWN CLICKED!');
+    print('Current _sourceMap: $_sourceMap');
+    print('Current _sourceMap length: ${_sourceMap.length}');
+    print('Source values: ${_sourceMap.values.toList()}');
+    print('Building dropdown with these values...\n');
+
+    // Check if source map is empty and reload if needed
+    if (_sourceMap.isEmpty) {
+      print('⚠️ Source map is empty! Reloading...');
+      _loadDropdownData();
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: ResponsiveUtils.getResponsivePadding(context),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -582,19 +1027,46 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
               'Select Source',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
               ),
             ),
-            const SizedBox(height: 16),
-            ...LeadSource.values.map((source) => ListTile(
-              title: Text(source.displayName),
-              selected: source == _selectedSource,
-              onTap: () {
-                setState(() {
-                  _selectedSource = source;
-                });
-                Navigator.pop(context);
-              },
-            )),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+            Flexible(
+              child: _sourceMap.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text('No sources available. Please refresh.'),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: _sourceMap.values
+                            .map(
+                              (source) => ListTile(
+                                title: Text(
+                                  source,
+                                  style: TextStyle(
+                                    fontSize:
+                                        ResponsiveUtils.getResponsiveFontSize(
+                                          context,
+                                          16,
+                                        ),
+                                  ),
+                                ),
+                                selected: source == _selectedSource,
+                                onTap: () {
+                                  setState(() {
+                                    _selectedSource = source;
+                                  });
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+            ),
           ],
         ),
       ),
@@ -604,8 +1076,12 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
   void _showIndustryPicker() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: ResponsiveUtils.getResponsivePadding(context),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -613,19 +1089,38 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
               'Select Industry',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
               ),
             ),
-            const SizedBox(height: 16),
-            ..._industries.map((industry) => ListTile(
-              title: Text(industry),
-              selected: industry == _selectedIndustry,
-              onTap: () {
-                setState(() {
-                  _selectedIndustry = industry;
-                });
-                Navigator.pop(context);
-              },
-            )),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: _industries
+                      .map(
+                        (industry) => ListTile(
+                          title: Text(
+                            industry,
+                            style: TextStyle(
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(
+                                context,
+                                16,
+                              ),
+                            ),
+                          ),
+                          selected: industry == _selectedIndustry,
+                          onTap: () {
+                            setState(() {
+                              _selectedIndustry = industry;
+                            });
+                            Navigator.pop(context);
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -641,26 +1136,51 @@ class _LeadCreateScreenState extends State<LeadCreateScreen> {
 
     final lead = Lead.create(
       name: _nameController.text.trim(),
-      account: _accountController.text.trim().isEmpty ? null : _accountController.text.trim(),
-      company: _companyController.text.trim().isEmpty ? null : _companyController.text.trim(),
+      account: _accountController.text.trim().isEmpty
+          ? null
+          : _accountController.text.trim(),
+      company: _companyController.text.trim().isEmpty
+          ? null
+          : _companyController.text.trim(),
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
-      title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-      website: _websiteController.text.trim().isEmpty ? null : _websiteController.text.trim(),
-      address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-      city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
-      state: _stateController.text.trim().isEmpty ? null : _stateController.text.trim(),
-      postalCode: _postalCodeController.text.trim().isEmpty ? null : _postalCodeController.text.trim(),
-      country: _countryController.text.trim().isEmpty ? null : _countryController.text.trim(),
-      status: _selectedStatus,
-      source: _selectedSource,
-      opportunityAmount: _opportunityAmountController.text.trim().isEmpty 
-          ? null 
+      title: _titleController.text.trim().isEmpty
+          ? null
+          : _titleController.text.trim(),
+      website: _websiteController.text.trim().isEmpty
+          ? null
+          : _websiteController.text.trim(),
+      address: _addressController.text.trim().isEmpty
+          ? null
+          : _addressController.text.trim(),
+      city: _cityController.text.trim().isEmpty
+          ? null
+          : _cityController.text.trim(),
+      state: _stateController.text.trim().isEmpty
+          ? null
+          : _stateController.text.trim(),
+      postalCode: _postalCodeController.text.trim().isEmpty
+          ? null
+          : _postalCodeController.text.trim(),
+      country: _countryController.text.trim().isEmpty
+          ? null
+          : _countryController.text.trim(),
+      status: LeadDropdownService.getStatusFromApiString(_selectedStatus),
+      source: LeadDropdownService.getSourceFromApiString(_selectedSource),
+      opportunityAmount: _opportunityAmountController.text.trim().isEmpty
+          ? null
           : double.tryParse(_opportunityAmountController.text.trim()),
-      campaign: _campaignController.text.trim().isEmpty ? null : _campaignController.text.trim(),
+      campaign: _campaignController.text.trim().isEmpty
+          ? null
+          : _campaignController.text.trim(),
       industry: _selectedIndustry,
-      assignedUser: _assignedUserController.text.trim().isEmpty ? null : _assignedUserController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+      // assignedUser: _assignedUserController.text.trim().isEmpty
+      //     ? null
+      //     : _assignedUserController.text.trim(), // Commented out - assigned user field removed
+      assignedUser: null, // Assigned user field removed
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
     );
 
     final success = await leadProvider.createLead(lead);

@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/visit_model.dart';
 import '../../services/geocoding_service.dart';
 import '../../widgets/app_logo.dart';
+import '../../utils/responsive_utils.dart';
 
 class VisitHistoryScreen extends StatefulWidget {
   const VisitHistoryScreen({super.key});
@@ -33,17 +34,20 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const AppLogo(
-              width: 24,
-              height: 24,
+            AppLogo(
+              width: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              height: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
-            const SizedBox(width: 8),
-            const Text('Visit History'),
+            SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
+            Text(
+              'Visit History',
+              style: TextStyle(fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20)),
+            ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, size: ResponsiveUtils.getResponsiveIconSize(context, 24)),
             onPressed: () {
               context.read<VisitProvider>().loadVisits();
             },
@@ -65,7 +69,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
           return RefreshIndicator(
             onRefresh: () => visitProvider.loadVisits(),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: ResponsiveUtils.getResponsivePadding(context),
               itemCount: visitProvider.visits.length,
               itemBuilder: (context, index) {
                 final visit = visitProvider.visits[index];
@@ -85,18 +89,19 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
         children: [
           Icon(
             Icons.history,
-            size: 80,
+            size: ResponsiveUtils.getResponsiveIconSize(context, 80),
             color: AppTheme.textSecondaryColor.withOpacity(0.5),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
           Text(
             'No Visits Yet',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: AppTheme.textSecondaryColor,
               fontWeight: FontWeight.bold,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
           Text(
             'Your visit history will appear here',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -104,13 +109,16 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 2),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.of(context).pushNamed('/visit/checkin');
             },
-            icon: const Icon(Icons.add),
-            label: const Text('Start First Visit'),
+            icon: Icon(Icons.add, size: ResponsiveUtils.getResponsiveIconSize(context, 20)),
+            label: Text(
+              'Start First Visit',
+              style: TextStyle(fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14)),
+            ),
           ),
         ],
       ),
@@ -119,10 +127,10 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
 
   Widget _buildVisitCard(Visit visit, int index) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -134,10 +142,10 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
           onTap: () => _showVisitDetails(visit),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: ResponsiveUtils.getResponsivePadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -145,22 +153,22 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                       decoration: BoxDecoration(
                         color: visit.isActive 
                             ? AppTheme.warningColor.withOpacity(0.1)
                             : AppTheme.successColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 8)),
                       ),
                       child: Icon(
                         visit.isActive ? Icons.location_on : Icons.check_circle,
                         color: visit.isActive 
                             ? AppTheme.warningColor
                             : AppTheme.successColor,
-                        size: 20,
+                        size: ResponsiveUtils.getResponsiveIconSize(context, 20),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,24 +177,29 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                             visit.clientName,
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 22),
                             ),
                           ),
                           Text(
                             _formatDate(visit.visitTime),
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: AppTheme.textSecondaryColor,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
                             ),
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                        vertical: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+                      ),
                       decoration: BoxDecoration(
                         color: visit.isActive 
                             ? AppTheme.warningColor.withOpacity(0.1)
                             : AppTheme.successColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 12)),
                       ),
                       child: Text(
                         visit.isActive ? 'Active' : 'Completed',
@@ -195,18 +208,19 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                               ? AppTheme.warningColor
                               : AppTheme.successColor,
                           fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
                         ),
                       ),
                     ),
                   ],
                 ),
                 
-                const SizedBox(height: 16),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
                 
                 // Visit Details Form Data
                 _buildVisitDetailsInfo(visit),
                 
-                const SizedBox(height: 16),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
                 
                 // Visit Time
                 Row(
@@ -219,7 +233,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                         AppTheme.primaryColor,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                     Expanded(
                       child: _buildDetailItem(
                         'Date',
@@ -228,7 +242,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                         AppTheme.secondaryColor,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                     Expanded(
                       child: _buildDetailItem(
                         'Status',
@@ -241,27 +255,28 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                 ),
                 
                 if (visit.notes != null && visit.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                     decoration: BoxDecoration(
                       color: AppTheme.backgroundColor,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 8)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
                           Icons.note_outlined,
-                          size: 16,
+                          size: ResponsiveUtils.getResponsiveIconSize(context, 16),
                           color: AppTheme.textSecondaryColor,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                         Expanded(
                           child: Text(
                             visit.notes!,
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppTheme.textSecondaryColor,
+                              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -272,17 +287,17 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                   ),
                 ],
                 
-                const SizedBox(height: 12),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                 
                 // Location Info
                 Row(
                   children: [
                     Icon(
                       Icons.location_on,
-                      size: 16,
+                      size: ResponsiveUtils.getResponsiveIconSize(context, 16),
                       color: AppTheme.textSecondaryColor,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                     FutureBuilder<String>(
                       future: GeocodingService.getAreaName(visit.latitude, visit.longitude),
                       builder: (context, snapshot) {
@@ -326,10 +341,10 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
 
   Widget _buildVisitDetailsInfo(Visit visit) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
       decoration: BoxDecoration(
         color: AppTheme.primaryColor.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 12)),
         border: Border.all(
           color: AppTheme.primaryColor.withOpacity(0.1),
           width: 1,
@@ -342,10 +357,10 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
             children: [
               Icon(
                 Icons.info_outline,
-                size: 16,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 16),
                 color: AppTheme.primaryColor,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
               Text(
                 'Visit Details',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -355,7 +370,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
           
           // Visiting Place
           if (visit.visitingReason != null && visit.visitingReason!.isNotEmpty)
@@ -385,16 +400,16 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
 
   Widget _buildLocationInfo(Visit visit) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.location_on,
-            size: 16,
-            color: AppTheme.primaryColor,
-          ),
-          const SizedBox(width: 8),
+              Icon(
+                Icons.location_on,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 16),
+                color: AppTheme.primaryColor,
+              ),
+              SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
           Expanded(
             child: FutureBuilder<String>(
               future: GeocodingService.getAreaName(visit.latitude, visit.longitude),
@@ -412,7 +427,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                       Text(
                         'Loading location...',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -442,8 +457,11 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
   }
 
   Widget _buildPhotoInfo(String photoPath) {
+    // Build full image URL from filename
+    final String imageUrl = _getImageUrl(photoPath);
+    
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -451,10 +469,10 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
             children: [
               Icon(
                 Icons.camera_alt,
-                size: 16,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 16),
                 color: AppTheme.primaryColor,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
               Text(
                 'Visit Photo',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -464,7 +482,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
           Container(
             width: double.infinity,
             height: 200,
@@ -477,22 +495,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                File(photoPath),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        size: 50,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  );
-                },
-              ),
+              child: _buildImageWidget(imageUrl, photoPath),
             ),
           ),
         ],
@@ -500,9 +503,103 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
     );
   }
 
+  Widget _buildImageWidget(String imageUrl, String photoPath) {
+    // Debug print
+    print('📸 Loading image: $photoPath');
+    print('📸 Full URL: $imageUrl');
+    
+    // Check if it's a local file path or just filename
+    if (photoPath.startsWith('/') || photoPath.contains('\\')) {
+      // Local file path
+      print('📸 Using local file');
+      return Image.file(
+        File(photoPath),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('❌ Local image error: $error');
+          return _buildErrorPlaceholder();
+        },
+      );
+    } else {
+      // Network image from API
+      print('📸 Using network URL');
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) {
+            print('✅ Image loaded successfully');
+            return child;
+          }
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          print('❌ Network image error: $error');
+          print('❌ Tried URL: $imageUrl');
+          return _buildErrorPlaceholder();
+        },
+      );
+    }
+  }
+
+  Widget _buildErrorPlaceholder() {
+    return Container(
+      color: Colors.grey[200],
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.image_not_supported,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 50),
+              color: Colors.grey,
+            ),
+            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
+            Text(
+              'Image not available',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getImageUrl(String photoPath) {
+    // If it's already a full URL, return as is
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    
+    // If it's a local file path, return as is
+    if (photoPath.startsWith('/') || photoPath.contains('\\')) {
+      return photoPath;
+    }
+    
+    // Otherwise, construct the full URL
+    // Try different possible paths:
+    // 1. https://live.extraaaz.com/storage/photos/
+    // 2. https://live.extraaaz.com/photos/
+    // 3. https://live.extraaaz.com/uploads/
+    // 4. https://live.extraaaz.com/storage/app/public/photos/
+    
+    // Using the most common Laravel storage path
+    return 'https://live.extraaaz.com/storage/photos/$photoPath';
+  }
+
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context) * 0.25),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -534,7 +631,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
 
   Widget _buildDetailItem(String label, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
@@ -544,9 +641,9 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
           Icon(
             icon,
             color: color,
-            size: 16,
+            size: ResponsiveUtils.getResponsiveIconSize(context, 16),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25),
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -554,7 +651,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.125),
           Text(
             value,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -601,7 +698,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
           
           // Header
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: ResponsiveUtils.getResponsivePadding(context),
             child: Row(
               children: [
                 Text(
@@ -622,7 +719,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
           // Content
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context) * 1.25),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -645,7 +742,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                     _buildDetailSection('Notes', [
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
                         decoration: BoxDecoration(
                           color: AppTheme.backgroundColor,
                           borderRadius: BorderRadius.circular(8),
@@ -658,7 +755,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                     ]),
                   
                   
-                  const SizedBox(height: 20),
+                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25),
                 ],
               ),
             ),
@@ -719,7 +816,7 @@ class _VisitHistoryScreenState extends State<VisitHistoryScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                       Text(
                         'Loading location...',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(

@@ -9,6 +9,7 @@ import '../../core/providers/visit_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_bottom_navigation.dart';
+import '../../utils/responsive_utils.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -23,61 +24,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () => _showEditProfileDialog(),
-          ),
-        ],
+        title: Text(
+          'Profile',
+          style: TextStyle(fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20)),
+        ),
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.edit),
+        //     onPressed: () => _showEditProfileDialog(),
+        //   ),
+        // ],
       ),
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {
           final user = authProvider.user;
-          
+
           if (user == null) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           return Column(
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: ResponsiveUtils.getResponsivePadding(context),
                   child: Column(
                     children: [
                       // Profile Header
                       _buildProfileHeader(user),
-                      
-                      const SizedBox(height: 24),
-                      
+
+                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
+
                       // Profile Information
                       _buildProfileInformation(user),
-                      
-                      const SizedBox(height: 24),
-                      
+
+                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
+
                       // Settings Section
                       _buildSettingsSection(),
-                      
-                      const SizedBox(height: 24),
-                      
+
+                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
+
                       // Logout Button
                       _buildLogoutButton(),
                     ],
                   ),
                 ),
               ),
-              Consumer<VisitProvider>(
-                builder: (context, visitProvider, child) {
-                  return CustomBottomNavigation(
-                    currentIndex: 3,
-                    isCheckedIn: visitProvider.hasActiveVisit,
-                  );
-                },
-              ),
             ],
+          );
+        },
+      ),
+      bottomNavigationBar: Consumer<VisitProvider>(
+        builder: (context, visitProvider, child) {
+          return CustomBottomNavigation(
+            currentIndex: 3,
+            isCheckedIn: visitProvider.hasActiveVisit,
           );
         },
       ),
@@ -86,14 +88,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader(user) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: ResponsiveUtils.getResponsivePadding(context),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppTheme.primaryColor, AppTheme.primaryDarkColor],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 20)),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryColor.withOpacity(0.3),
@@ -106,57 +108,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           // Avatar
           Container(
-            width: 100,
-            height: 100,
+            width: ResponsiveUtils.getResponsiveIconSize(context, 100).toDouble(),
+            height: ResponsiveUtils.getResponsiveIconSize(context, 100).toDouble(),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(50),
-              border: Border.all(
-                color: Colors.white,
-                width: 4,
-              ),
+              borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveIconSize(context, 50).toDouble()),
+              border: Border.all(color: Colors.white, width: 4),
             ),
             child: user.avatar != null
                 ? ClipRRect(
-                    borderRadius: BorderRadius.circular(46),
+                    borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveIconSize(context, 46).toDouble()),
                     child: Image.network(
                       user.avatar!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
+                        return Icon(
                           Icons.person,
-                          size: 50,
+                          size: ResponsiveUtils.getResponsiveIconSize(context, 50),
                           color: Colors.white,
                         );
                       },
                     ),
                   )
-                : const Icon(
-                    Icons.person,
-                    size: 50,
-                    color: Colors.white,
-                  ),
+                : Icon(Icons.person, size: ResponsiveUtils.getResponsiveIconSize(context, 50), color: Colors.white),
           ),
-          
-          const SizedBox(height: 16),
-          
+
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+
           // Name
           Text(
             user.name,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 24),
             ),
           ),
-          
-          const SizedBox(height: 4),
-          
+
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25),
+
           // Role
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+              vertical: ResponsiveUtils.getResponsiveSpacing(context) * 0.375,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
             ),
             child: Text(
               user.role.toUpperCase(),
@@ -164,117 +163,117 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
               ),
             ),
           ),
-          
-          const SizedBox(height: 8),
-          
+
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
+
           // Email
           Text(
             user.email,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(
               color: Colors.white70,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
             ),
           ),
         ],
       ),
-    )
-    .animate()
-    .fadeIn(duration: 600.ms)
-    .slideY(begin: -0.2, end: 0);
+    ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.2, end: 0);
   }
 
   Widget _buildProfileInformation(user) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          padding: ResponsiveUtils.getResponsivePadding(context),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Profile Information',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Profile Information',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 22),
+                ),
+              ),
+
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25),
+
+              _buildInfoRow(
+                'Full Name',
+                user.name,
+                Icons.person_outline,
+                AppTheme.primaryColor,
+              ),
+
+              _buildInfoRow(
+                'Email Address',
+                user.email,
+                Icons.email_outlined,
+                AppTheme.secondaryColor,
+              ),
+
+              if (user.phone != null)
+                _buildInfoRow(
+                  'Phone Number',
+                  user.phone!,
+                  Icons.phone_outlined,
+                  AppTheme.successColor,
+                ),
+
+              _buildInfoRow(
+                'Role',
+                user.role,
+                Icons.work_outline,
+                AppTheme.accentColor,
+              ),
+
+              if (user.lastLoginAt != null)
+                _buildInfoRow(
+                  'Last Login',
+                  _formatDateTime(user.lastLoginAt!),
+                  Icons.access_time,
+                  AppTheme.textSecondaryColor,
+                ),
+            ],
           ),
-          
-          const SizedBox(height: 20),
-          
-          _buildInfoRow(
-            'Full Name',
-            user.name,
-            Icons.person_outline,
-            AppTheme.primaryColor,
-          ),
-          
-          _buildInfoRow(
-            'Email Address',
-            user.email,
-            Icons.email_outlined,
-            AppTheme.secondaryColor,
-          ),
-          
-          if (user.phone != null)
-            _buildInfoRow(
-              'Phone Number',
-              user.phone!,
-              Icons.phone_outlined,
-              AppTheme.successColor,
-            ),
-          
-          _buildInfoRow(
-            'Role',
-            user.role,
-            Icons.work_outline,
-            AppTheme.accentColor,
-          ),
-          
-          if (user.lastLoginAt != null)
-            _buildInfoRow(
-              'Last Login',
-              _formatDateTime(user.lastLoginAt!),
-              Icons.access_time,
-              AppTheme.textSecondaryColor,
-            ),
-        ],
-      ),
-    )
-    .animate()
-    .fadeIn(duration: 600.ms, delay: 200.ms)
-    .slideY(begin: 0.2, end: 0);
+        )
+        .animate()
+        .fadeIn(duration: 600.ms, delay: 200.ms)
+        .slideY(begin: 0.2, end: 0);
   }
 
   Widget _buildInfoRow(String label, String value, IconData icon, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context)),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 8)),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
+            child: Icon(icon, color: color, size: ResponsiveUtils.getResponsiveIconSize(context, 20)),
           ),
-          
-          const SizedBox(width: 16),
-          
+
+          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,14 +283,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondaryColor,
                     fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.125),
                 Text(
                   value,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppTheme.textPrimaryColor,
                     fontWeight: FontWeight.w600,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
                   ),
                 ),
               ],
@@ -304,63 +305,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSettingsSection() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+          padding: ResponsiveUtils.getResponsivePadding(context),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Settings',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Settings',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25),
+
+              // _buildSettingsItem(
+              //   'Notifications',
+              //   'Manage notification preferences',
+              //   Icons.notifications_outlined,
+              //   () => _showComingSoonDialog('Notifications'),
+              // ),
+              _buildSettingsItem(
+                'Privacy',
+                'Manage privacy settings',
+                Icons.privacy_tip_outlined,
+                () => _showComingSoonDialog('Privacy'),
+              ),
+
+              _buildSettingsItem(
+                'Location Settings',
+                'Manage location permissions',
+                Icons.location_on_outlined,
+                () => _showLocationSettingsDialog(),
+              ),
+
+              _buildSettingsItem(
+                'App Version',
+                'Version 1.0.0',
+                Icons.info_outline,
+                () => _showAboutDialog(),
+              ),
+            ],
           ),
-          
-          const SizedBox(height: 20),
-          
-          _buildSettingsItem(
-            'Notifications',
-            'Manage notification preferences',
-            Icons.notifications_outlined,
-            () => _showComingSoonDialog('Notifications'),
-          ),
-          
-          _buildSettingsItem(
-            'Privacy',
-            'Manage privacy settings',
-            Icons.privacy_tip_outlined,
-            () => _showComingSoonDialog('Privacy'),
-          ),
-          
-          _buildSettingsItem(
-            'Location Settings',
-            'Manage location permissions',
-            Icons.location_on_outlined,
-            () => _showLocationSettingsDialog(),
-          ),
-          
-          _buildSettingsItem(
-            'App Version',
-            'Version 1.0.0',
-            Icons.info_outline,
-            () => _showAboutDialog(),
-          ),
-        ],
-      ),
-    )
-    .animate()
-    .fadeIn(duration: 600.ms, delay: 400.ms)
-    .slideY(begin: 0.2, end: 0);
+        )
+        .animate()
+        .fadeIn(duration: 600.ms, delay: 400.ms)
+        .slideY(begin: 0.2, end: 0);
   }
 
   void _showLocationSettingsDialog() {
@@ -375,22 +375,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Auto Checkout Settings'),
-                const SizedBox(height: 16),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
                 SwitchListTile(
                   title: const Text('Auto Checkout on Location Off'),
-                  subtitle: const Text('Automatically checkout when location is turned off'),
+                  subtitle: const Text(
+                    'Automatically checkout when location is turned off',
+                  ),
                   value: locationProvider.autoCheckoutEnabled,
                   onChanged: (value) {
                     locationProvider.setAutoCheckoutEnabled(value);
                   },
                   activeColor: AppTheme.primaryColor,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
                 Text(
                   'When enabled, the app will automatically checkout from active visits if:',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                 const Text('• Location permission is denied'),
                 const Text('• Location service is disabled'),
                 const Text('• GPS is turned off'),
@@ -408,7 +410,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSettingsItem(String title, String subtitle, IconData icon, VoidCallback onTap) {
+  Widget _buildSettingsItem(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -419,20 +426,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 8)),
                 ),
-                child: Icon(
-                  icon,
-                  color: AppTheme.primaryColor,
-                  size: 20,
-                ),
+                child: Icon(icon, color: AppTheme.primaryColor, size: ResponsiveUtils.getResponsiveIconSize(context, 20)),
               ),
-              
-              const SizedBox(width: 16),
-              
+
+              SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,7 +446,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.125),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -453,10 +456,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-              
+
               Icon(
                 Icons.arrow_forward_ios,
-                size: 16,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 16),
                 color: AppTheme.textSecondaryColor,
               ),
             ],
@@ -470,15 +473,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         return CustomButton(
-          text: 'Logout',
-          onPressed: authProvider.isLoading ? null : _handleLogout,
-          isLoading: authProvider.isLoading,
-          width: double.infinity,
-          backgroundColor: AppTheme.errorColor,
-        )
-        .animate()
-        .fadeIn(duration: 600.ms, delay: 600.ms)
-        .slideY(begin: 0.2, end: 0);
+              text: 'Logout',
+              onPressed: authProvider.isLoading ? null : _handleLogout,
+              isLoading: authProvider.isLoading,
+              width: double.infinity,
+              backgroundColor: AppTheme.errorColor,
+            )
+            .animate()
+            .fadeIn(duration: 600.ms, delay: 600.ms)
+            .slideY(begin: 0.2, end: 0);
       },
     );
   }
@@ -488,7 +491,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit Profile'),
-        content: const Text('Profile editing feature will be available in the next update.'),
+        content: const Text(
+          'Profile editing feature will be available in the next update.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -526,14 +531,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           color: AppTheme.primaryColor,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(
-          Icons.location_on,
-          color: Colors.white,
-          size: 32,
-        ),
+        child: Icon(Icons.location_on, color: Colors.white, size: ResponsiveUtils.getResponsiveIconSize(context, 32)),
       ),
       children: [
-        const Text('A comprehensive field visit tracking and journey monitoring application.'),
+        const Text(
+          'A comprehensive field visit tracking and journey monitoring application.',
+        ),
       ],
     );
   }

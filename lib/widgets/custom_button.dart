@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
+import '../utils/responsive_utils.dart';
 
 class CustomButton extends StatelessWidget {
   final String text;
@@ -32,7 +33,7 @@ class CustomButton extends StatelessWidget {
 
     return SizedBox(
       width: width,
-      height: height,
+      height: ResponsiveUtils.getResponsiveIconSize(context, height),
       child: isOutlined
           ? OutlinedButton(
               onPressed: isLoading ? null : onPressed,
@@ -40,34 +41,44 @@ class CustomButton extends StatelessWidget {
                 foregroundColor: effectiveBackgroundColor,
                 side: BorderSide(color: effectiveBackgroundColor),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveUtils.getResponsiveBorderRadius(context, 12),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: EdgeInsets.symmetric(
+                  horizontal:
+                      ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                ),
               ),
-              child: _buildButtonContent(effectiveTextColor),
+              child: _buildButtonContent(context, effectiveTextColor),
             )
           : ElevatedButton(
               onPressed: isLoading ? null : onPressed,
               style: ElevatedButton.styleFrom(
                 backgroundColor: effectiveBackgroundColor,
                 foregroundColor: effectiveTextColor,
-                elevation: 2,
+                elevation: ResponsiveUtils.getResponsiveElevation(context, 2),
                 shadowColor: effectiveBackgroundColor.withOpacity(0.3),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveUtils.getResponsiveBorderRadius(context, 12),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: EdgeInsets.symmetric(
+                  horizontal:
+                      ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                ),
               ),
-              child: _buildButtonContent(effectiveTextColor),
+              child: _buildButtonContent(context, effectiveTextColor),
             ),
     );
   }
 
-  Widget _buildButtonContent(Color textColor) {
+  Widget _buildButtonContent(BuildContext context, Color textColor) {
     if (isLoading) {
       return SizedBox(
-        width: 20,
-        height: 20,
+        width: ResponsiveUtils.getResponsiveIconSize(context, 20),
+        height: ResponsiveUtils.getResponsiveIconSize(context, 20),
         child: CircularProgressIndicator(
           strokeWidth: 2,
           valueColor: AlwaysStoppedAnimation<Color>(
@@ -83,15 +94,15 @@ class CustomButton extends StatelessWidget {
         if (icon != null) ...[
           Icon(
             icon,
-            size: 20,
+            size: ResponsiveUtils.getResponsiveIconSize(context, 20),
             color: textColor,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
         ],
         Text(
           text,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
             fontWeight: FontWeight.w600,
             color: textColor,
           ),
@@ -131,7 +142,9 @@ class CustomIconButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(size / 2),
           boxShadow: [
             BoxShadow(
-              color: (backgroundColor ?? AppTheme.primaryColor).withOpacity(0.3),
+              color: (backgroundColor ?? AppTheme.primaryColor).withOpacity(
+                0.3,
+              ),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -139,11 +152,7 @@ class CustomIconButton extends StatelessWidget {
         ),
         child: IconButton(
           onPressed: onPressed,
-          icon: Icon(
-            icon,
-            color: iconColor ?? Colors.white,
-            size: size * 0.5,
-          ),
+          icon: Icon(icon, color: iconColor ?? Colors.white, size: size * 0.5),
         ),
       ),
     );
@@ -172,10 +181,7 @@ class CustomFloatingActionButton extends StatelessWidget {
       onPressed: onPressed,
       backgroundColor: backgroundColor ?? AppTheme.primaryColor,
       tooltip: tooltip,
-      child: Icon(
-        icon,
-        color: iconColor ?? Colors.white,
-      ),
+      child: Icon(icon, color: iconColor ?? Colors.white),
     );
   }
 }

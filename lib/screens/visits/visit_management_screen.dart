@@ -9,13 +9,19 @@ import 'dart:convert';
 import '../../core/providers/visit_provider.dart';
 import '../../core/providers/target_provider.dart';
 import '../../core/providers/location_provider.dart';
+import '../../models/lead_model.dart';
 import '../../core/theme/app_theme.dart';
 import '../../widgets/visit_details_form.dart';
 import '../../widgets/custom_bottom_navigation.dart';
 import '../../widgets/app_logo.dart';
+import '../../services/assigned_leads_service.dart';
+import '../../utils/auth_helper.dart';
+import '../../utils/responsive_utils.dart';
 
 class VisitManagementScreen extends StatefulWidget {
-  const VisitManagementScreen({super.key});
+  final String? preselectedLeadId;
+
+  const VisitManagementScreen({super.key, this.preselectedLeadId});
 
   @override
   State<VisitManagementScreen> createState() => _VisitManagementScreenState();
@@ -27,16 +33,78 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
   String? _visitReason;
   String? _visitArea;
   File? _visitPhoto;
+  Lead? _selectedLead;
+
+  // Assigned leads from API
+  List<Lead> _assignedLeads = [];
+  bool _isLoadingAssignedLeads = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<VisitProvider>().initializeVisits();
+      _loadAssignedLeads(); // Load assigned leads from API
       _loadFormDataFromPrefs(); // Load saved form data
     });
   }
 
+  // Load assigned leads from API
+  Future<void> _loadAssignedLeads() async {
+    try {
+      setState(() {
+        _isLoadingAssignedLeads = true;
+      });
+
+      debugPrint('\n📋 VISIT MANAGEMENT: Loading assigned leads...');
+
+      // Get authenticated user ID
+      final userId = await AuthHelper.getAuthenticatedUserId();
+
+      debugPrint('🔑 Authenticated User ID: $userId');
+
+      // Fetch assigned leads from API
+      final assignedLeads = await AssignedLeadsService.getAssignedLeads(userId);
+
+      // If a lead ID was preselected, find and select it
+      Lead? preselectedLead;
+      if (widget.preselectedLeadId != null && assignedLeads.isNotEmpty) {
+        try {
+          preselectedLead = assignedLeads.firstWhere(
+            (lead) => lead.id == widget.preselectedLeadId,
+          );
+          debugPrint('✅ Found preselected lead: ${preselectedLead.name}');
+        } catch (e) {
+          debugPrint(
+            '⚠️ Preselected lead not found: ${widget.preselectedLeadId}',
+          );
+        }
+      }
+
+      // Set both leads and selected lead in the same setState
+      setState(() {
+        _assignedLeads = assignedLeads;
+        _isLoadingAssignedLeads = false;
+        if (preselectedLead != null) {
+          _selectedLead = preselectedLead;
+        }
+      });
+
+      debugPrint('✅ Assigned leads loaded: ${assignedLeads.length} leads');
+      if (assignedLeads.isNotEmpty) {
+        debugPrint(
+          '📋 First lead: ${assignedLeads.first.name} (${assignedLeads.first.email})',
+        );
+      }
+      debugPrint('');
+    } catch (e) {
+      debugPrint('❌ Error loading assigned leads: $e');
+      setState(() {
+        _assignedLeads = [];
+        _isLoadingAssignedLeads = false;
+      });
+    }
+  }
 
   // Load form data from SharedPreferences
   Future<void> _loadFormDataFromPrefs() async {
@@ -50,7 +118,8 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           _visitPerson = formData['visitingPerson'] ?? '';
           _visitReason = formData['visitingReason'] ?? '';
           _visitArea = formData['visitingArea'] ?? '';
-          if (formData['photoPath'] != null && formData['photoPath'].isNotEmpty) {
+          if (formData['photoPath'] != null &&
+              formData['photoPath'].isNotEmpty) {
             _visitPhoto = File(formData['photoPath']);
           }
         });
@@ -67,23 +136,36 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const AppLogo(
-              width: 24,
-              height: 24,
+            AppLogo(
+              width: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              height: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
-            const SizedBox(width: 8),
-            const Text('Visit Management'),
+            SizedBox(
+              width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+            ),
+            Text(
+              'Visit Management',
+              style: TextStyle(
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
+              ),
+            ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(
+              Icons.refresh,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
             onPressed: () {
               context.read<VisitProvider>().initializeVisits();
             },
           ),
           IconButton(
-            icon: const Icon(Icons.history),
+            icon: Icon(
+              Icons.history,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
             onPressed: () => context.push('/visit/history'),
           ),
         ],
@@ -93,7 +175,7 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           return RefreshIndicator(
             onRefresh: () => visitProvider.initializeVisits(),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: ResponsiveUtils.getResponsivePadding(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -102,17 +184,21 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
                       .animate()
                       .fadeIn(duration: 600.ms)
                       .slideX(begin: -0.2, end: 0),
-                  
-                  const SizedBox(height: 24),
-                  
+
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                  ),
+
                   // Visit Details Form
                   _buildVisitDetailsForm()
                       .animate()
                       .fadeIn(duration: 600.ms, delay: 200.ms)
                       .slideY(begin: 0.2, end: 0),
-                  
-                  const SizedBox(height: 24),
-                  
+
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                  ),
+
                   // Quick Actions
                   _buildQuickActions()
                       .animate()
@@ -127,7 +213,7 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       bottomNavigationBar: Consumer<VisitProvider>(
         builder: (context, visitProvider, child) {
           return CustomBottomNavigation(
-            currentIndex: 1,
+            currentIndex: 1, // VMS is at index 1 for non-Flutter Developer
             isCheckedIn: visitProvider.hasActiveVisit,
           );
         },
@@ -137,14 +223,19 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
 
   Widget _buildHeaderSection() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: ResponsiveUtils.getResponsivePadding(context),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.primaryColor.withOpacity(0.8)],
+          colors: [
+            AppTheme.primaryColor,
+            AppTheme.primaryColor.withOpacity(0.8),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(
+          ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryColor.withOpacity(0.3),
@@ -156,36 +247,48 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(
+              ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+            ),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 12),
+              ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.location_on,
               color: Colors.white,
-              size: 28,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 28),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Visit Management',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      20,
+                    ),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+                ),
                 Text(
                   'Manage your field visits efficiently',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      14,
+                    ),
                   ),
                 ),
               ],
@@ -203,17 +306,28 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       initialReason: _visitReason,
       initialArea: _visitArea,
       initialPhoto: _visitPhoto,
-      onSubmit: (place, person, reason, area, photo) async {
+      selectedLead: _selectedLead,
+      leads: _assignedLeads, // Use assigned leads from API instead of all leads
+      isLoadingLeads: _isLoadingAssignedLeads,
+      onSubmit: (place, person, reason, area, photo, selectedLead) async {
         setState(() {
           _visitPlace = place;
           _visitPerson = person;
           _visitReason = reason;
           _visitArea = area;
           _visitPhoto = photo;
+          _selectedLead = selectedLead;
         });
-        
+
         // Create visit directly using the new createVisit method
-        await _createVisitDirectly(place, person, reason, area, photo);
+        await _createVisitDirectly(
+          place,
+          person,
+          reason,
+          area,
+          photo,
+          selectedLead,
+        );
       },
       onCancel: () {
         setState(() {
@@ -222,24 +336,37 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           _visitReason = null;
           _visitArea = null;
           _visitPhoto = null;
+          _selectedLead = null;
         });
       },
+      onRefreshLeads: _loadAssignedLeads, // Refresh assigned leads on demand
     );
   }
 
-  Future<void> _createVisitDirectly(String place, String person, String reason, String? area, File? photo) async {
+  Future<void> _createVisitDirectly(
+    String place,
+    String person,
+    String reason,
+    String? area,
+    File? photo,
+    Lead? selectedLead,
+  ) async {
     try {
       final visitProvider = context.read<VisitProvider>();
       final locationProvider = context.read<LocationProvider>();
-      
+
       if (locationProvider.currentPosition == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Location not available. Please enable location services.'),
+            content: const Text(
+              'Location not available. Please enable location services.',
+            ),
             backgroundColor: AppTheme.errorColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+              ),
             ),
           ),
         );
@@ -250,9 +377,7 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // Create visit directly
@@ -265,10 +390,10 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
         visitingArea: area,
         photoPath: photo?.path,
       );
-      
+
       // Close loading dialog
       Navigator.of(context).pop();
-      
+
       if (success) {
         // Clear form data after successful creation
         setState(() {
@@ -278,21 +403,26 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           _visitArea = null;
           _visitPhoto = null;
         });
-        
+
         // Clear saved form data
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('visit_form_data');
-        
-        // Increment target counter
-        context.read<TargetProvider>().incrementSubmission();
-        
+
+        // Update target counter with actual visit count
+        final visitProvider = context.read<VisitProvider>();
+        final targetProvider = context.read<TargetProvider>();
+        final todayVisitsCount = _getTodayVisitsCount(visitProvider.visits);
+        targetProvider.updateCompletedVisits(todayVisitsCount);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Visit created successfully!'),
             backgroundColor: AppTheme.successColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+              ),
             ),
           ),
         );
@@ -303,7 +433,9 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
             backgroundColor: AppTheme.errorColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+              ),
             ),
           ),
         );
@@ -313,15 +445,13 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error creating visit: $e'),
           backgroundColor: AppTheme.errorColor,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }
@@ -335,9 +465,10 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           'Quick Actions',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 22),
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
         Row(
           children: [
             Expanded(
@@ -349,7 +480,9 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
                 onTap: () => context.push('/visit/history'),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(
+              width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+            ),
             Expanded(
               child: _buildQuickActionCard(
                 icon: Icons.analytics,
@@ -361,7 +494,7 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
         Row(
           children: [
             Expanded(
@@ -373,7 +506,9 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
                 onTap: () => context.push('/visit/settings'),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(
+              width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+            ),
             Expanded(
               child: _buildQuickActionCard(
                 icon: Icons.help,
@@ -399,18 +534,17 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: ResponsiveUtils.getResponsivePadding(context),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: color.withOpacity(0.2),
-            width: 1,
+          borderRadius: BorderRadius.circular(
+            ResponsiveUtils.getResponsiveBorderRadius(context, 12),
           ),
+          border: Border.all(color: color.withOpacity(0.2), width: 1),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
+              blurRadius: ResponsiveUtils.getResponsiveElevation(context, 8),
               offset: const Offset(0, 2),
             ),
           ],
@@ -419,29 +553,39 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(
+                ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+              ),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+                ),
               ),
               child: Icon(
                 icon,
                 color: color,
-                size: 20,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 20),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(
+              height: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+            ),
             Text(
               title,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(
+              height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+            ),
             Text(
               subtitle,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppTheme.textSecondaryColor,
+                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
               ),
             ),
           ],
@@ -450,4 +594,18 @@ class _VisitManagementScreenState extends State<VisitManagementScreen> {
     );
   }
 
+  // Helper method to count today's visits
+  int _getTodayVisitsCount(List visits) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return visits.where((visit) {
+      final visitDate = DateTime(
+        visit.visitTime.year,
+        visit.visitTime.month,
+        visit.visitTime.day,
+      );
+      return visitDate.isAtSameMomentAs(today);
+    }).length;
+  }
 }

@@ -5,7 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../../core/providers/visit_provider.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/checkin_checkout_history_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/checkin_checkout_history_model.dart';
+import '../../utils/responsive_utils.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -20,6 +23,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<VisitProvider>().loadVisits();
+      // Load check-in/check-out history for the current user
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.user != null) {
+        final userId = int.tryParse(authProvider.user!.id);
+        if (userId != null) {
+          context
+              .read<CheckInCheckOutHistoryProvider>()
+              .loadCheckInCheckOutHistory(userId);
+        }
+      }
     });
   }
 
@@ -28,61 +41,103 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Monthly Attendance'),
+        title: Text(
+          'Monthly Attendance',
+          style: TextStyle(
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
+          ),
+        ),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: Icon(
+            Icons.arrow_back_ios,
+            color: Colors.white,
+            size: ResponsiveUtils.getResponsiveIconSize(context, 20),
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => context.read<VisitProvider>().loadVisits(),
+            icon: Icon(
+              Icons.refresh,
+              color: Colors.white,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 20),
+            ),
+            onPressed: () async {
+              await context.read<VisitProvider>().loadVisits();
+              final authProvider = context.read<AuthProvider>();
+              if (authProvider.user != null) {
+                final userId = int.tryParse(authProvider.user!.id);
+                if (userId != null) {
+                  await context
+                      .read<CheckInCheckOutHistoryProvider>()
+                      .loadCheckInCheckOutHistory(userId);
+                }
+              }
+            },
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body: Consumer<VisitProvider>(
-        builder: (context, visitProvider, child) {
+      body: Consumer2<VisitProvider, CheckInCheckOutHistoryProvider>(
+        builder: (context, visitProvider, historyProvider, child) {
           final visits = visitProvider.visits;
-          
-          if (visitProvider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+          final historyDetails = historyProvider.currentMonthDetails;
+          final statistics = historyProvider.currentMonthStatistics;
+
+          if (visitProvider.isLoading || historyProvider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
           }
-          
-          if (visits.isEmpty) {
+
+          if (historyDetails.isEmpty && visits.isEmpty) {
             return _buildEmptyState();
           }
-          
+
+          // Show error if there's an error loading history
+          if (historyProvider.error != null) {
+            return _buildErrorState(historyProvider.error!);
+          }
+
           return RefreshIndicator(
-            onRefresh: () => visitProvider.loadVisits(),
+            onRefresh: () async {
+              await visitProvider.loadVisits();
+              final authProvider = context.read<AuthProvider>();
+              if (authProvider.user != null) {
+                final userId = int.tryParse(authProvider.user!.id);
+                if (userId != null) {
+                  await historyProvider.loadCheckInCheckOutHistory(userId);
+                }
+              }
+            },
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: ResponsiveUtils.getResponsivePadding(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header Section
-                  _buildHeaderSection(visits)
+                  _buildHeaderSection(historyDetails, statistics)
                       .animate()
                       .fadeIn(duration: 600.ms)
                       .slideY(begin: -0.2, end: 0),
-                  
-                  const SizedBox(height: 24),
-                  
+
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                  ),
+
                   // Statistics Cards
-                  _buildStatisticsCards(visits)
+                  _buildStatisticsCards(historyDetails, statistics)
                       .animate()
                       .fadeIn(duration: 600.ms, delay: 200.ms)
                       .slideY(begin: 0.2, end: 0),
-                  
-                  const SizedBox(height: 24),
-                  
+
+                  SizedBox(
+                    height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                  ),
+
                   // Attendance List
-                  _buildAttendanceList(visits)
+                  _buildAttendanceList(historyDetails)
                       .animate()
                       .fadeIn(duration: 600.ms, delay: 400.ms)
                       .slideY(begin: 0.2, end: 0),
@@ -140,113 +195,334 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  Widget _buildHeaderSection(List visits) {
-    final currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
-    final completedVisits = visits.where((visit) => visit.checkOutTime != null).length;
-    
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppTheme.primaryColor, AppTheme.primaryColor.withOpacity(0.8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryColor.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              color: Colors.white,
-              size: 32,
+          Icon(
+            Icons.error_outline_rounded,
+            size: 80,
+            color: Colors.red.withOpacity(0.5),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Error Loading Attendance',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.red.withOpacity(0.7),
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Monthly Attendance',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  currentMonth,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$completedVisits completed visits',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            'Unable to load attendance history.\nPlease check your internet connection and try again.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: Colors.grey.withOpacity(0.5),
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Error: $error',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: Colors.red.withOpacity(0.7)),
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final authProvider = context.read<AuthProvider>();
+                  if (authProvider.user != null) {
+                    final userId = int.tryParse(authProvider.user!.id);
+                    if (userId != null) {
+                      await context
+                          .read<CheckInCheckOutHistoryProvider>()
+                          .loadCheckInCheckOutHistory(userId);
+                    }
+                  }
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Go Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatisticsCards(List visits) {
-    final completedVisits = visits.where((visit) => visit.checkOutTime != null).length;
-    final activeVisits = visits.where((visit) => visit.checkOutTime == null).length;
-    final totalHours = _calculateTotalHours(visits);
-    
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.check_circle_rounded,
-            title: 'Completed',
-            value: completedVisits.toString(),
-            color: AppTheme.successColor,
-          ),
+  Widget _buildHeaderSection(
+    List<CheckInCheckOutHistory> historyDetails,
+    Map<String, dynamic> statistics,
+  ) {
+    final currentMonth = DateFormat('MMMM yyyy').format(DateTime.now());
+    final completedSessions = statistics['completedSessions'] ?? 0;
+
+    return Container(
+      width: ResponsiveUtils.getResponsiveWidth(context, 1000),
+      padding: ResponsiveUtils.getResponsivePadding(context),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryColor,
+            AppTheme.primaryColor.withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.pending_rounded,
-            title: 'Active',
-            value: activeVisits.toString(),
-            color: AppTheme.warningColor,
-          ),
+        borderRadius: BorderRadius.circular(
+          ResponsiveUtils.getResponsiveBorderRadius(context, 16),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.timer_rounded,
-            title: 'Total Hours',
-            value: '${totalHours}h',
-            color: AppTheme.primaryColor,
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryColor.withOpacity(0.3),
+            blurRadius: ResponsiveUtils.getResponsiveElevation(context, 12),
+            offset: const Offset(0, 6),
           ),
-        ),
-      ],
+        ],
+      ),
+      child: ResponsiveUtils.isMobile(context)
+          ? Column(
+              children: [
+                Container(
+                  padding: ResponsiveUtils.getResponsivePadding(context),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.calendar_month_rounded,
+                    color: Colors.white,
+                    size: ResponsiveUtils.getResponsiveIconSize(context, 32),
+                  ),
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Monthly Attendance',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: ResponsiveUtils.getResponsiveFontSize(
+                          context,
+                          24,
+                        ),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(
+                      height:
+                          ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                    ),
+                    Text(
+                      currentMonth,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: ResponsiveUtils.getResponsiveFontSize(
+                          context,
+                          16,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height:
+                          ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+                    ),
+                    Text(
+                      '$completedSessions completed sessions',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: ResponsiveUtils.getResponsiveFontSize(
+                          context,
+                          14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  padding: ResponsiveUtils.getResponsivePadding(context),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.calendar_month_rounded,
+                    color: Colors.white,
+                    size: ResponsiveUtils.getResponsiveIconSize(context, 32),
+                  ),
+                ),
+                SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Monthly Attendance',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                            context,
+                            24,
+                          ),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                      ),
+                      Text(
+                        currentMonth,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                            context,
+                            16,
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveUtils.getResponsiveSpacing(context) *
+                            0.25,
+                      ),
+                      Text(
+                        '$completedSessions completed sessions',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                            context,
+                            14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
+  }
+
+  Widget _buildStatisticsCards(
+    List<CheckInCheckOutHistory> historyDetails,
+    Map<String, dynamic> statistics,
+  ) {
+    final completedSessions = statistics['completedSessions'] ?? 0;
+    final activeSessions = statistics['activeSessions'] ?? 0;
+    final totalHours = (statistics['totalHours'] as double?)?.round() ?? 0;
+
+    return ResponsiveUtils.isMobile(context)
+        ? Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.check_circle_rounded,
+                  title: 'Completed',
+                  value: completedSessions.toString(),
+                  color: AppTheme.successColor,
+                ),
+              ),
+              SizedBox(
+                width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+              ),
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.pending_rounded,
+                  title: 'Active',
+                  value: activeSessions.toString(),
+                  color: AppTheme.warningColor,
+                ),
+              ),
+              SizedBox(
+                width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+              ),
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.timer_rounded,
+                  title: 'Total Hours',
+                  value: '${totalHours}h',
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ],
+          )
+        : Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.check_circle_rounded,
+                  title: 'Completed',
+                  value: completedSessions.toString(),
+                  color: AppTheme.successColor,
+                ),
+              ),
+              SizedBox(
+                width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+              ),
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.pending_rounded,
+                  title: 'Active',
+                  value: activeSessions.toString(),
+                  color: AppTheme.warningColor,
+                ),
+              ),
+              SizedBox(
+                width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+              ),
+              Expanded(
+                child: _buildStatCard(
+                  icon: Icons.timer_rounded,
+                  title: 'Total Hours',
+                  value: '${totalHours}h',
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ],
+          );
   }
 
   Widget _buildStatCard({
@@ -256,18 +532,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: ResponsiveUtils.getResponsivePadding(context),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withOpacity(0.2),
-          width: 1,
+        borderRadius: BorderRadius.circular(
+          ResponsiveUtils.getResponsiveBorderRadius(context, 12),
         ),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
+            blurRadius: ResponsiveUtils.getResponsiveElevation(context, 8),
             offset: const Offset(0, 2),
           ),
         ],
@@ -275,30 +550,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(
+              ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+            ),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+              ),
             ),
             child: Icon(
               icon,
               color: color,
-              size: 20,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 20),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: color,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(
+            height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+          ),
           Text(
             title,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppTheme.textSecondaryColor,
+              fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
             ),
             textAlign: TextAlign.center,
           ),
@@ -307,38 +590,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
-  Widget _buildAttendanceList(List visits) {
+  Widget _buildAttendanceList(List<CheckInCheckOutHistory> historyDetails) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Attendance Records',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        ...visits.map((visit) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildAttendanceCard(visit),
-        )),
+        ...historyDetails.map(
+          (detail) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildAttendanceCard(detail),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildAttendanceCard(visit) {
-    final isCompleted = visit.checkOutTime != null;
-    final duration = isCompleted 
-        ? visit.checkOutTime!.difference(visit.checkInTime)
-        : DateTime.now().difference(visit.checkInTime);
-    
+  Widget _buildAttendanceCard(CheckInCheckOutHistory detail) {
+    final isCompleted = detail.isCompleted;
+    final duration = detail.duration;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCompleted 
+          color: isCompleted
               ? AppTheme.successColor.withOpacity(0.3)
               : AppTheme.warningColor.withOpacity(0.3),
           width: 1,
@@ -360,15 +643,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isCompleted 
+                  color: isCompleted
                       ? AppTheme.successColor.withOpacity(0.1)
                       : AppTheme.warningColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  DateFormat('dd MMM yyyy').format(visit.checkInTime),
+                  DateFormat('dd MMM yyyy').format(detail.checkInTime),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isCompleted ? AppTheme.successColor : AppTheme.warningColor,
+                    color: isCompleted
+                        ? AppTheme.successColor
+                        : AppTheme.warningColor,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -377,7 +662,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isCompleted 
+                  color: isCompleted
                       ? AppTheme.successColor.withOpacity(0.1)
                       : AppTheme.warningColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -385,7 +670,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 child: Text(
                   isCompleted ? 'COMPLETED' : 'ACTIVE',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isCompleted ? AppTheme.successColor : AppTheme.warningColor,
+                    color: isCompleted
+                        ? AppTheme.successColor
+                        : AppTheme.warningColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
@@ -394,27 +681,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // User Name
           Text(
-            context.read<AuthProvider>().user?.name ?? 'User',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            detail.userName,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          
+
           // Check-in Time
           Row(
             children: [
-              Icon(
-                Icons.login_rounded,
-                color: AppTheme.successColor,
-                size: 16,
-              ),
+              Icon(Icons.login_rounded, color: AppTheme.successColor, size: 16),
               const SizedBox(width: 8),
               Text(
-                'Check-in: ${DateFormat('h:mm a').format(visit.checkInTime)}',
+                'Check-in: ${DateFormat('h:mm a').format(detail.checkInTime)}',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textSecondaryColor,
                 ),
@@ -422,7 +705,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Check-out Time
           Row(
             children: [
@@ -433,25 +716,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                isCompleted 
-                    ? 'Check-out: ${DateFormat('h:mm a').format(visit.checkOutTime!)}'
-                    : 'Check-out: In progress',
+                detail.checkOutTime != null
+                    ? 'Check-out: ${DateFormat('h:mm a').format(detail.checkOutTime!)}'
+                    : 'Check-out: --',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isCompleted ? AppTheme.textSecondaryColor : Colors.grey,
+                  color: detail.checkOutTime != null
+                      ? AppTheme.textSecondaryColor
+                      : Colors.grey,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Duration
           Row(
             children: [
-              Icon(
-                Icons.timer_rounded,
-                color: AppTheme.primaryColor,
-                size: 16,
-              ),
+              Icon(Icons.timer_rounded, color: AppTheme.primaryColor, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Duration: ${_formatDuration(duration)}',
@@ -462,6 +743,78 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
             ],
           ),
+
+          // Notes section if available
+          if (detail.inNotes.isNotEmpty || detail.outNotes.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (detail.inNotes.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.note_alt,
+                          color: AppTheme.primaryColor,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Check-in Notes:',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      detail.inNotes,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ),
+                  ],
+                  if (detail.outNotes.isNotEmpty) ...[
+                    if (detail.inNotes.isNotEmpty) const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.note_alt,
+                          color: AppTheme.primaryColor,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Check-out Notes:',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      detail.outNotes,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondaryColor,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -470,21 +823,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
-    
+
     if (hours > 0) {
       return '${hours}h ${minutes}m';
     } else {
       return '${minutes}m';
     }
-  }
-
-  int _calculateTotalHours(List visits) {
-    double totalMinutes = 0;
-    for (final visit in visits) {
-      if (visit.checkOutTime != null) {
-        totalMinutes += visit.checkOutTime!.difference(visit.checkInTime).inMinutes.toDouble();
-      }
-    }
-    return (totalMinutes / 60).round();
   }
 }

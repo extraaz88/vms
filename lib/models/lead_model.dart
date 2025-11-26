@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 class Lead {
   final String id;
   final String name;
@@ -14,7 +12,7 @@ class Lead {
   final String? state;
   final String? postalCode;
   final String? country;
-  final LeadStatus status;
+  final LeadStatus status; 
   final LeadSource source;
   final double? opportunityAmount;
   final String? campaign;
@@ -65,15 +63,19 @@ class Lead {
       state: json['state'],
       postalCode: json['postal_code'],
       country: json['country'],
-      status: LeadStatus.fromString(json['status'] ?? 'new'),
-      source: LeadSource.fromString(json['source'] ?? 'cold_calling'),
+      status: LeadStatus.fromApiString(json['status'] ?? 'New'),
+      source: LeadSource.fromApiString(json['source'] ?? 'Cold Calling'),
       opportunityAmount: json['opportunity_amount']?.toDouble(),
       campaign: json['campaign'],
       industry: json['industry'] ?? 'Sales',
       assignedUser: json['assigned_user'],
       description: json['description'],
-      createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updated_at'] ?? DateTime.now().toIso8601String()),
+      createdAt: DateTime.parse(
+        json['created_at'] ?? DateTime.now().toIso8601String(),
+      ),
+      updatedAt: DateTime.parse(
+        json['updated_at'] ?? DateTime.now().toIso8601String(),
+      ),
     );
   }
 
@@ -203,15 +205,21 @@ class Lead {
   }
 }
 
-// Lead Status Enum
+// Lead Status Enum - Updated to support API values
 enum LeadStatus {
-  newLead('new', 'New'),
-  contacted('contacted', 'Contacted'),
-  qualified('qualified', 'Qualified'),
-  proposal('proposal', 'Proposal'),
-  negotiation('negotiation', 'Negotiation'),
-  closedWon('closed_won', 'Closed Won'),
-  closedLost('closed_lost', 'Closed Lost');
+  newLead('New', 'New'),
+  assigned('Assigned', 'Assigned'),
+  inProcess('In Process', 'In Process'),
+  converted('Converted', 'Converted'),
+  recycled('Recycled', 'Recycled'),
+  dead('Dead', 'Dead'),
+  // Legacy support for old enum values
+  contacted('Contacted', 'Contacted'),
+  qualified('Qualified', 'Qualified'),
+  proposal('Proposal', 'Proposal'),
+  negotiation('Negotiation', 'Negotiation'),
+  closedWon('Closed Won', 'Closed Won'),
+  closedLost('Closed Lost', 'Closed Lost');
 
   const LeadStatus(this.value, this.displayName);
 
@@ -224,18 +232,30 @@ enum LeadStatus {
       orElse: () => LeadStatus.newLead,
     );
   }
+
+  // Create LeadStatus from API string
+  static LeadStatus fromApiString(String apiValue) {
+    return LeadStatus.values.firstWhere(
+      (status) => status.value == apiValue,
+      orElse: () => LeadStatus.newLead,
+    );
+  }
 }
 
-// Lead Source Enum
+// Lead Source Enum - Updated to support API values
 enum LeadSource {
-  coldCalling('cold_calling', 'Cold Calling'),
-  email('email', 'Email'),
-  website('website', 'Website'),
-  referral('referral', 'Referral'),
-  socialMedia('social_media', 'Social Media'),
-  tradeShow('trade_show', 'Trade Show'),
-  advertising('advertising', 'Advertising'),
-  other('other', 'Other');
+  coldCalling('Cold Calling', 'Cold Calling'),
+  referral('Referral', 'Referral'),
+  contact('contact', 'contact'),
+  blueprint('blueprint', 'blueprint'),
+  partner('partner', 'partner'),
+  // Legacy support for old enum values
+  email('Email', 'Email'),
+  website('Website', 'Website'),
+  socialMedia('Social Media', 'Social Media'),
+  tradeShow('Trade Show', 'Trade Show'),
+  advertising('Advertising', 'Advertising'),
+  other('Other', 'Other');
 
   const LeadSource(this.value, this.displayName);
 
@@ -245,6 +265,14 @@ enum LeadSource {
   static LeadSource fromString(String value) {
     return LeadSource.values.firstWhere(
       (source) => source.value == value,
+      orElse: () => LeadSource.coldCalling,
+    );
+  }
+
+  // Create LeadSource from API string
+  static LeadSource fromApiString(String apiValue) {
+    return LeadSource.values.firstWhere(
+      (source) => source.value == apiValue,
       orElse: () => LeadSource.coldCalling,
     );
   }

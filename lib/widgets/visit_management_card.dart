@@ -46,7 +46,8 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _areaName = '${widget.visit.latitude.toStringAsFixed(6)}, ${widget.visit.longitude.toStringAsFixed(6)}';
+          _areaName =
+              '${widget.visit.latitude.toStringAsFixed(6)}, ${widget.visit.longitude.toStringAsFixed(6)}';
           _isLoadingArea = false;
         });
       }
@@ -62,10 +63,10 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              widget.visit.isActive 
+              widget.visit.isActive
                   ? AppTheme.successColor.withOpacity(0.1)
                   : AppTheme.primaryColor.withOpacity(0.1),
-              widget.visit.isActive 
+              widget.visit.isActive
                   ? AppTheme.successColor.withOpacity(0.05)
                   : AppTheme.primaryColor.withOpacity(0.05),
             ],
@@ -74,15 +75,18 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: widget.visit.isActive 
+            color: widget.visit.isActive
                 ? AppTheme.successColor.withOpacity(0.3)
                 : AppTheme.primaryColor.withOpacity(0.3),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: (widget.visit.isActive ? AppTheme.successColor : AppTheme.primaryColor)
-                  .withOpacity(0.1),
+              color:
+                  (widget.visit.isActive
+                          ? AppTheme.successColor
+                          : AppTheme.primaryColor)
+                      .withOpacity(0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -97,14 +101,18 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: widget.visit.isActive 
+                    color: widget.visit.isActive
                         ? AppTheme.successColor.withOpacity(0.2)
                         : AppTheme.primaryColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    widget.visit.isActive ? Icons.location_on : Icons.location_off,
-                    color: widget.visit.isActive ? AppTheme.successColor : AppTheme.primaryColor,
+                    widget.visit.isActive
+                        ? Icons.location_on
+                        : Icons.location_off,
+                    color: widget.visit.isActive
+                        ? AppTheme.successColor
+                        : AppTheme.primaryColor,
                     size: 20,
                   ),
                 ),
@@ -115,15 +123,16 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
                     children: [
                       Text(
                         widget.visit.clientName,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         widget.visit.status.toUpperCase(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: widget.visit.isActive ? AppTheme.successColor : AppTheme.textSecondaryColor,
+                          color: widget.visit.isActive
+                              ? AppTheme.successColor
+                              : AppTheme.textSecondaryColor,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.5,
                         ),
@@ -131,21 +140,20 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
                     ],
                   ),
                 ),
-                if (widget.visit.isActive && widget.showTimer)
-                  _buildTimer(),
+                if (widget.visit.isActive && widget.showTimer) _buildTimer(),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Location details
             _buildLocationDetails(),
-            
+
             const SizedBox(height: 16),
-            
+
             // Visit details
             _buildVisitDetails(),
-            
+
             if (widget.visit.isActive) ...[
               const SizedBox(height: 16),
               _buildActiveVisitActions(),
@@ -160,7 +168,7 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
     return StreamBuilder<Duration>(
       stream: Stream.periodic(const Duration(seconds: 1), (_) {
         if (widget.visit.checkInTime != null) {
-          return DateTime.now().difference(widget.visit.checkInTime!);
+          return DateTime.now().difference(widget.visit.checkInTime);
         }
         return Duration.zero;
       }),
@@ -169,7 +177,7 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
         final hours = duration.inHours;
         final minutes = duration.inMinutes.remainder(60);
         final seconds = duration.inSeconds.remainder(60);
-        
+
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -199,21 +207,14 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.7),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                Icons.location_on,
-                color: AppTheme.primaryColor,
-                size: 16,
-              ),
+              Icon(Icons.location_on, color: AppTheme.primaryColor, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Location',
@@ -233,7 +234,9 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
                   height: 12,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppTheme.primaryColor,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -284,7 +287,7 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
             icon: Icons.access_time,
             label: 'Check-in',
             value: widget.visit.checkInTime != null
-                ? DateFormat('HH:mm').format(widget.visit.checkInTime!)
+                ? DateFormat('HH:mm').format(widget.visit.checkInTime)
                 : 'Not started',
             color: AppTheme.primaryColor,
           ),
@@ -296,8 +299,12 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
             label: 'Check-out',
             value: widget.visit.checkOutTime != null
                 ? DateFormat('HH:mm').format(widget.visit.checkOutTime!)
-                : widget.visit.isActive ? 'Active' : 'Not completed',
-            color: widget.visit.isActive ? AppTheme.successColor : AppTheme.textSecondaryColor,
+                : widget.visit.isActive
+                ? 'Active'
+                : 'Not completed',
+            color: widget.visit.isActive
+                ? AppTheme.successColor
+                : AppTheme.textSecondaryColor,
           ),
         ),
       ],
@@ -315,21 +322,14 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.7),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                color: color,
-                size: 14,
-              ),
+              Icon(icon, color: color, size: 14),
               const SizedBox(width: 4),
               Text(
                 label,
@@ -369,11 +369,7 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.info_outline,
-                color: AppTheme.successColor,
-                size: 16,
-              ),
+              Icon(Icons.info_outline, color: AppTheme.successColor, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Visit Active',
@@ -387,9 +383,9 @@ class _VisitManagementCardState extends State<VisitManagementCard> {
           const SizedBox(height: 8),
           Text(
             'Your visit is currently active. Tap to view details or check-out.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppTheme.textSecondaryColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondaryColor),
           ),
         ],
       ),

@@ -6,6 +6,7 @@ import '../core/theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 import '../models/visit_model.dart';
 import '../services/geocoding_service.dart';
+import '../services/location_validation_service.dart';
 
 class CheckinCheckoutSlider extends StatefulWidget {
   final Visit? activeVisit;
@@ -29,7 +30,7 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
   late AnimationController _pulseController;
   late Animation<double> _slideAnimation;
   late Animation<double> _pulseAnimation;
-  
+
   bool _isSliderVisible = false;
   String _areaName = 'Loading...';
   bool _isLoadingArea = true;
@@ -37,35 +38,27 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
   @override
   void initState() {
     super.initState();
-    
+
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
+
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
-    _slideAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _pulseAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-    
+
+    _slideAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeInOut),
+    );
+
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     _loadAreaName();
-    
+
     // Start pulse animation for check-in button
     if (widget.activeVisit == null) {
       _pulseController.repeat(reverse: true);
@@ -113,7 +106,7 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
     setState(() {
       _isSliderVisible = !_isSliderVisible;
     });
-    
+
     if (_isSliderVisible) {
       _slideController.forward();
     } else {
@@ -149,22 +142,22 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
   Widget build(BuildContext context) {
     final locationProvider = context.watch<LocationProvider>();
     final hasLocation = locationProvider.currentPosition != null;
-    
+
     return Column(
       children: [
         // Main Action Button
         _buildMainActionButton(hasLocation),
-        
+
         const SizedBox(height: 16),
-        
+
         // Location Info
         _buildLocationInfo(locationProvider, hasLocation),
-        
+
         const SizedBox(height: 16),
-        
+
         // Slider Toggle
         _buildSliderToggle(),
-        
+
         // Slider Content
         AnimatedBuilder(
           animation: _slideAnimation,
@@ -185,14 +178,21 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
 
   Widget _buildMainActionButton(bool hasLocation) {
     final isActive = widget.activeVisit != null;
+    final locationProvider = context.read<LocationProvider>();
+    final isInOffice = hasLocation 
+        ? LocationValidationService.isUserInOffice(locationProvider.currentPosition!)
+        : false;
     
+    // For check-in, user must be in office. For check-out, location doesn't matter
+    final canPerformAction = isActive || (hasLocation && isInOffice);
+
     return AnimatedBuilder(
       animation: _pulseAnimation,
       builder: (context, child) {
         return Transform.scale(
           scale: isActive ? 1.0 : _pulseAnimation.value,
           child: GestureDetector(
-            onTap: hasLocation 
+            onTap: canPerformAction
                 ? (isActive ? _handleCheckOut : _handleCheckIn)
                 : null,
             child: Container(
@@ -200,20 +200,30 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
               height: 60,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: hasLocation
-                      ? (isActive 
-                          ? [AppTheme.errorColor, AppTheme.errorColor.withOpacity(0.8)]
-                          : [AppTheme.successColor, AppTheme.successColor.withOpacity(0.8)])
-                      : [Colors.grey, Colors.grey.withOpacity(0.8)],
+                  colors: canPerformAction
+                      ? (isActive
+                            ? [
+                                AppTheme.errorColor,
+                                AppTheme.errorColor.withOpacity(0.8),
+                              ]
+                            : [
+                                AppTheme.successColor,
+                                AppTheme.successColor.withOpacity(0.8),
+                              ])
+                      : [Colors.orange, Colors.orange.withOpacity(0.8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: (hasLocation
-                        ? (isActive ? AppTheme.errorColor : AppTheme.successColor)
-                        : Colors.grey).withOpacity(0.3),
+                    color:
+                        (canPerformAction
+                                ? (isActive
+                                      ? AppTheme.errorColor
+                                      : AppTheme.successColor)
+                                : Colors.orange)
+                            .withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -223,7 +233,7 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    hasLocation
+                    canPerformAction
                         ? (isActive ? Icons.logout : Icons.login)
                         : Icons.location_off,
                     color: Colors.white,
@@ -231,9 +241,11 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    hasLocation
+                    canPerformAction
                         ? (isActive ? 'CHECK-OUT' : 'CHECK-IN')
-                        : 'LOCATION UNAVAILABLE',
+                        : hasLocation 
+                            ? 'NOT IN OFFICE'
+                            : 'LOCATION UNAVAILABLE',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -250,16 +262,16 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
     );
   }
 
-  Widget _buildLocationInfo(LocationProvider locationProvider, bool hasLocation) {
+  Widget _buildLocationInfo(
+    LocationProvider locationProvider,
+    bool hasLocation,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.grey.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,7 +280,9 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
             children: [
               Icon(
                 hasLocation ? Icons.gps_fixed : Icons.gps_off,
-                color: hasLocation ? AppTheme.successColor : AppTheme.errorColor,
+                color: hasLocation
+                    ? AppTheme.successColor
+                    : AppTheme.errorColor,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -276,7 +290,9 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
                 hasLocation ? 'Current Location' : 'Location Not Available',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: hasLocation ? AppTheme.successColor : AppTheme.errorColor,
+                  color: hasLocation
+                      ? AppTheme.successColor
+                      : AppTheme.errorColor,
                 ),
               ),
             ],
@@ -290,7 +306,9 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppTheme.primaryColor,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -352,7 +370,9 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              _isSliderVisible ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              _isSliderVisible
+                  ? Icons.keyboard_arrow_up
+                  : Icons.keyboard_arrow_down,
               color: AppTheme.primaryColor,
               size: 20,
             ),
@@ -372,17 +392,14 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
 
   Widget _buildSliderContent() {
     if (!_isSliderVisible) return const SizedBox.shrink();
-    
+
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.grey.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -396,20 +413,20 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
         children: [
           Text(
             'Visit Information',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
+
           if (widget.activeVisit != null) ...[
             _buildActiveVisitInfo(),
           ] else ...[
             _buildCheckInInfo(),
           ],
-          
+
           const SizedBox(height: 16),
-          
+
           // Action Buttons
           Row(
             children: [
@@ -439,16 +456,19 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
 
   Widget _buildActiveVisitInfo() {
     final visit = widget.activeVisit!;
-    final duration = visit.checkInTime != null 
-        ? DateTime.now().difference(visit.checkInTime!)
-        : Duration.zero;
-    
+    final duration = DateTime.now().difference(visit.checkInTime);
+
     return Column(
       children: [
         _buildInfoRow('Client', visit.clientName, Icons.person),
-        _buildInfoRow('Status', 'Active Visit', Icons.location_on, AppTheme.successColor),
+        _buildInfoRow(
+          'Status',
+          'Active Visit',
+          Icons.location_on,
+          AppTheme.successColor,
+        ),
         _buildInfoRow('Duration', _formatDuration(duration), Icons.timer),
-        if (visit.notes?.isNotEmpty == true)
+        if (visit.notes != null && visit.notes!.isNotEmpty)
           _buildInfoRow('Notes', visit.notes!, Icons.note),
       ],
     );
@@ -457,14 +477,24 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
   Widget _buildCheckInInfo() {
     return Column(
       children: [
-        _buildInfoRow('Action', 'Ready to Check-in', Icons.login, AppTheme.primaryColor),
+        _buildInfoRow(
+          'Action',
+          'Ready to Check-in',
+          Icons.login,
+          AppTheme.primaryColor,
+        ),
         _buildInfoRow('Location', _areaName, Icons.location_on),
         _buildInfoRow('Status', 'Waiting for check-in', Icons.pending),
       ],
     );
   }
 
-  Widget _buildInfoRow(String label, String value, IconData icon, [Color? color]) {
+  Widget _buildInfoRow(
+    String label,
+    String value,
+    IconData icon, [
+    Color? color,
+  ]) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -475,11 +505,7 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
               color: (color ?? AppTheme.primaryColor).withOpacity(0.1),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(
-              icon,
-              color: color ?? AppTheme.primaryColor,
-              size: 16,
-            ),
+            child: Icon(icon, color: color ?? AppTheme.primaryColor, size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -522,18 +548,11 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: color.withOpacity(0.3),
-            width: 1,
-          ),
+          border: Border.all(color: color.withOpacity(0.3), width: 1),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
+            Icon(icon, color: color, size: 20),
             const SizedBox(height: 4),
             Text(
               label,
@@ -552,7 +571,7 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '${hours}h ${minutes}m ${seconds}s';
     } else if (minutes > 0) {
@@ -568,7 +587,6 @@ class _CheckinCheckoutSliderState extends State<CheckinCheckoutSlider>
       // This would open the current location in maps
       // Implementation depends on your MapsService
       ScaffoldMessenger.of(context).showSnackBar(
-        
         const SnackBar(
           content: Text('Opening in maps...'),
           backgroundColor: AppTheme.successColor,

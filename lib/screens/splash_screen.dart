@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/providers/auth_provider.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/app_logo.dart';
+import '../utils/responsive_utils.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -23,46 +24,38 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize animation controllers
     _logoController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _textController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
-    
+
     // Initialize animations
-    _logoScale = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: Curves.elasticOut,
-    ));
-    
-    _textOpacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _textController,
-      curve: Curves.easeInOut,
-    ));
-    
+    _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: Curves.elasticOut),
+    );
+
+    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _textController, curve: Curves.easeInOut),
+    );
+
     _startAnimations();
   }
 
   void _startAnimations() async {
     // Start logo animation
     _logoController.forward();
-    
+
     // Start text animation after a delay
     await Future.delayed(const Duration(milliseconds: 800));
     _textController.forward();
-    
+
     // Initialize auth and navigate
     await Future.delayed(const Duration(milliseconds: 2000));
     await _initializeAndNavigate();
@@ -71,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _initializeAndNavigate() async {
     final authProvider = context.read<AuthProvider>();
     await authProvider.initializeAuth();
-    
+
     if (mounted) {
       if (authProvider.isLoggedIn) {
         context.go('/dashboard');
@@ -97,10 +90,7 @@ class _SplashScreenState extends State<SplashScreen>
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.primaryColor,
-              AppTheme.primaryDarkColor,
-            ],
+            colors: [AppTheme.primaryColor, AppTheme.primaryDarkColor],
           ),
         ),
         child: SafeArea(
@@ -117,11 +107,22 @@ class _SplashScreenState extends State<SplashScreen>
                         return Transform.scale(
                           scale: _logoScale.value,
                           child: Container(
-                            width: 120,
-                            height: 120,
+                            width: ResponsiveUtils.getResponsiveIconSize(
+                              context,
+                              120,
+                            ),
+                            height: ResponsiveUtils.getResponsiveIconSize(
+                              context,
+                              120,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(
+                                ResponsiveUtils.getResponsiveBorderRadius(
+                                  context,
+                                  24,
+                                ),
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.2),
@@ -130,11 +131,19 @@ class _SplashScreenState extends State<SplashScreen>
                                 ),
                               ],
                             ),
-                            child: const Padding(
-                              padding: EdgeInsets.all(16),
+                            child: Padding(
+                              padding: ResponsiveUtils.getResponsivePadding(
+                                context,
+                              ),
                               child: AppLogo(
-                                width: 88,
-                                height: 88,
+                                width: ResponsiveUtils.getResponsiveIconSize(
+                                  context,
+                                  88,
+                                ),
+                                height: ResponsiveUtils.getResponsiveIconSize(
+                                  context,
+                                  88,
+                                ),
                                 fit: BoxFit.contain,
                               ),
                             ),
@@ -142,9 +151,12 @@ class _SplashScreenState extends State<SplashScreen>
                         );
                       },
                     ),
-                    
-                    const SizedBox(height: 40),
-                    
+
+                    SizedBox(
+                      height:
+                          ResponsiveUtils.getResponsiveSpacing(context) * 2.5,
+                    ),
+
                     // App Name Animation
                     AnimatedBuilder(
                       animation: _textOpacity,
@@ -155,28 +167,49 @@ class _SplashScreenState extends State<SplashScreen>
                             children: [
                               Text(
                                 'VMS',
-                                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2,
-                                ),
+                                style: Theme.of(context).textTheme.displayLarge
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 2,
+                                      fontSize:
+                                          ResponsiveUtils.getResponsiveFontSize(
+                                            context,
+                                            48,
+                                          ),
+                                    ),
                               ),
-                              const SizedBox(height: 8),
+                              SizedBox(
+                                height:
+                                    ResponsiveUtils.getResponsiveSpacing(
+                                      context,
+                                    ) *
+                                    0.5,
+                              ),
                               Text(
                                 'Field Visit Tracker',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w300,
-                                ),
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w300,
+                                      fontSize:
+                                          ResponsiveUtils.getResponsiveFontSize(
+                                            context,
+                                            20,
+                                          ),
+                                    ),
                               ),
                             ],
                           ),
                         );
                       },
                     ),
-                    
-                    const SizedBox(height: 60),
-                    
+
+                    SizedBox(
+                      height:
+                          ResponsiveUtils.getResponsiveSpacing(context) * 3.75,
+                    ),
+
                     // Loading Animation
                     AnimatedBuilder(
                       animation: _textOpacity,
@@ -185,16 +218,28 @@ class _SplashScreenState extends State<SplashScreen>
                           opacity: _textOpacity.value,
                           child: Column(
                             children: [
-                              const CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                                 strokeWidth: 2,
                               ),
-                              const SizedBox(height: 16),
+                              SizedBox(
+                                height: ResponsiveUtils.getResponsiveSpacing(
+                                  context,
+                                ),
+                              ),
                               Text(
                                 'Initializing...',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Colors.white70,
-                                ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: Colors.white70,
+                                      fontSize:
+                                          ResponsiveUtils.getResponsiveFontSize(
+                                            context,
+                                            14,
+                                          ),
+                                    ),
                               ),
                             ],
                           ),
@@ -204,7 +249,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ],
                 ),
               ),
-              
+
               // Bottom Info
               AnimatedBuilder(
                 animation: _textOpacity,
@@ -212,22 +257,38 @@ class _SplashScreenState extends State<SplashScreen>
                   return Opacity(
                     opacity: _textOpacity.value,
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: ResponsiveUtils.getResponsivePadding(context),
                       child: Column(
                         children: [
                           Text(
                             'Track • Monitor • Manage',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white60,
-                              letterSpacing: 1,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.white60,
+                                  letterSpacing: 1,
+                                  fontSize:
+                                      ResponsiveUtils.getResponsiveFontSize(
+                                        context,
+                                        12,
+                                      ),
+                                ),
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(
+                            height:
+                                ResponsiveUtils.getResponsiveSpacing(context) *
+                                0.5,
+                          ),
                           Text(
                             'Version 1.0.0',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white54,
-                            ),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Colors.white54,
+                                  fontSize:
+                                      ResponsiveUtils.getResponsiveFontSize(
+                                        context,
+                                        12,
+                                      ),
+                                ),
                           ),
                         ],
                       ),

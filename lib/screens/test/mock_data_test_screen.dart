@@ -40,11 +40,7 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
               ),
               child: Column(
                 children: [
-                  const Icon(
-                    Icons.storage,
-                    size: 48,
-                    color: Colors.white,
-                  ),
+                  const Icon(Icons.storage, size: 48, color: Colors.white),
                   const SizedBox(height: 16),
                   Text(
                     'Mock Data Testing',
@@ -56,26 +52,26 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Test local storage functionality',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white70,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Auth Test
             _buildTestSection(
-              'Authentication Test',
-              'Test login with mock data',
+              'Real Sign-in API Test',
+              'Test sign-in with real server',
               Icons.login,
-              () => _testLogin(),
+              () => _testRealSignIn(),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Visit Test
             _buildTestSection(
               'Visit Management Test',
@@ -83,9 +79,29 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
               Icons.business,
               () => _testVisitManagement(),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
+            // API Test
+            _buildTestSection(
+              'Real Check-in API Test',
+              'Test check-in with real API endpoint',
+              Icons.api,
+              () => _testRealApi(),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Check-out API Test
+            _buildTestSection(
+              'Real Check-out API Test',
+              'Test check-out with real API endpoint',
+              Icons.logout,
+              () => _testRealCheckOut(),
+            ),
+
+            const SizedBox(height: 16),
+
             // Location Test
             _buildTestSection(
               'Location Tracking Test',
@@ -93,9 +109,9 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
               Icons.location_on,
               () => _testLocationTracking(),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Current User Info
             Consumer<AuthProvider>(
               builder: (context, authProvider, child) {
@@ -118,9 +134,8 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
                       children: [
                         Text(
                           'Current User',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         _buildInfoRow('Name', authProvider.user!.name),
@@ -133,9 +148,9 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
                 return const SizedBox.shrink();
               },
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Clear Data Button
             CustomButton(
               text: 'Clear All Mock Data',
@@ -149,7 +164,12 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
     );
   }
 
-  Widget _buildTestSection(String title, String subtitle, IconData icon, VoidCallback onTap) {
+  Widget _buildTestSection(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -177,11 +197,7 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
                     color: AppTheme.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    icon,
-                    color: AppTheme.primaryColor,
-                    size: 24,
-                  ),
+                  child: Icon(icon, color: AppTheme.primaryColor, size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -190,9 +206,8 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -244,52 +259,133 @@ class _MockDataTestScreenState extends State<MockDataTestScreen> {
     );
   }
 
-  Future<void> _testLogin() async {
+  Future<void> _testRealSignIn() async {
     final authProvider = context.read<AuthProvider>();
-    
+
     try {
-      // Test with random email and password
-      final success = await authProvider.login('test@example.com', '123456');
-      
+      // Test with real credentials
+      final success = await authProvider.login(
+        'info@extraaazpos.com',
+        'Admin@2025',
+      );
+
       if (success) {
-        _showSnackBar('Login successful with any credentials!', AppTheme.successColor);
+        _showSnackBar(
+          '✅ Sign-in successful! Check terminal for token and user details.',
+          AppTheme.successColor,
+        );
       } else {
-        _showSnackBar('Login failed: ${authProvider.error}', AppTheme.errorColor);
+        _showSnackBar(
+          '❌ Sign-in failed: ${authProvider.error}',
+          AppTheme.errorColor,
+        );
       }
     } catch (e) {
-      _showSnackBar('Error: $e', AppTheme.errorColor);
+      _showSnackBar('❌ Sign-in Error: $e', AppTheme.errorColor);
     }
   }
 
   Future<void> _testVisitManagement() async {
     final visitProvider = context.read<VisitProvider>();
-    
+
     try {
-      // Test check-in
+      // Test check-in with old format (working format)
       final success = await visitProvider.checkIn(
-        clientName: 'Test Client',
-        latitude: 28.6139,
-        longitude: 77.2090,
-        notes: 'Test visit from mock data screen',
+        latitude: 18.5204,
+        longitude: 73.8567,
+        clientName: "Test Client",
+        notes: "Test visit from mock data screen",
+        visitingReason: "Demo",
+        visitingArea: "Test Area",
       );
-      
+
       if (success) {
-        _showSnackBar('Check-in successful!', AppTheme.successColor);
+        _showSnackBar(
+          'Check-in successful! Check terminal for API logs.',
+          AppTheme.successColor,
+        );
       } else {
-        _showSnackBar('Check-in failed: ${visitProvider.error}', AppTheme.errorColor);
+        _showSnackBar(
+          'Check-in failed: ${visitProvider.error}',
+          AppTheme.errorColor,
+        );
       }
     } catch (e) {
       _showSnackBar('Error: $e', AppTheme.errorColor);
     }
   }
 
+  Future<void> _testRealApi() async {
+    final visitProvider = context.read<VisitProvider>();
+
+    try {
+      // Test real API check-in with exact format from your specification
+      final success = await visitProvider.checkIn(
+        userId: 3,
+        userName: "Shubham",
+        inLatitude: 18.5204,
+        inLongitude: 73.8567,
+        checkInTime: "2025-10-03 09:30",
+        inAccuracy: 2,
+        inBatteryPercent: 15,
+        inNotes: "Demo meeting scheduled - Test from Test Screen",
+      );
+
+      if (success) {
+        _showSnackBar(
+          '✅ API Check-in successful! Check terminal for detailed logs.',
+          AppTheme.successColor,
+        );
+      } else {
+        _showSnackBar(
+          '❌ API Check-in failed: ${visitProvider.error}',
+          AppTheme.errorColor,
+        );
+      }
+    } catch (e) {
+      _showSnackBar('❌ API Error: $e', AppTheme.errorColor);
+    }
+  }
+
+  Future<void> _testRealCheckOut() async {
+    final visitProvider = context.read<VisitProvider>();
+
+    try {
+      // Test real API check-out with exact format from your specification
+      final success = await visitProvider.checkOut(
+        visitId: '1', // Use existing visit ID
+        userId: 3,
+        outLatitude: 19.5204,
+        outLongitude: 74.8567,
+        checkOutTime: "2025-10-03 06:30",
+        outAccuracy: 9,
+        outBatteryPercent: 25,
+        outNotes: "Task Completed dfdf - Test from Test Screen",
+      );
+
+      if (success) {
+        _showSnackBar(
+          '✅ API Check-out successful! Check terminal for detailed logs.',
+          AppTheme.successColor,
+        );
+      } else {
+        _showSnackBar(
+          '❌ API Check-out failed: ${visitProvider.error}',
+          AppTheme.errorColor,
+        );
+      }
+    } catch (e) {
+      _showSnackBar('❌ API Error: $e', AppTheme.errorColor);
+    }
+  }
+
   Future<void> _testLocationTracking() async {
     final locationProvider = context.read<LocationProvider>();
-    
+
     try {
       // Test location logging
       final position = await locationProvider.getCurrentLocation();
-      
+
       if (position != null) {
         _showSnackBar(
           'Location logged: ${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}',

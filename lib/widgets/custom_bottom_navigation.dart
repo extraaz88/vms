@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../core/providers/auth_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../utils/responsive_utils.dart';
 
 class CustomBottomNavigation extends StatelessWidget {
   final int currentIndex;
@@ -15,161 +18,154 @@ class CustomBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Container(
-          height: 80,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                context: context,
-                index: 0,
-                icon: Icons.dashboard_rounded,
-                activeIcon: Icons.dashboard_rounded,
-                label: 'Dashboard',
-                route: '/dashboard',
-              ),
-              _buildNavItem(
-                context: context,
-                index: 1,
-                icon: Icons.location_on_outlined,
-                activeIcon: Icons.location_on_rounded,
-                label: 'VMS',
-                route: '/visit/management',
-                isDisabled: !isCheckedIn,
-                disabledMessage: 'Please check in first',
-              ),
-              _buildNavItem(
-                context: context,
-                index: 2,
-                icon: Icons.login_outlined,
-                activeIcon: Icons.login_rounded,
-                label: 'Check-in/out',
-                route: '/checkin-checkout',
-              ),
-              _buildNavItem(
-                context: context,
-                index: 3,
-                icon: Icons.person_outline_rounded,
-                activeIcon: Icons.person_rounded,
-                label: 'Profile',
-                route: '/profile',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final user = authProvider.user;
+        final isFlutterDeveloper = user?.isFlutterDeveloper ?? false;
 
-  Widget _buildNavItem({
-    required BuildContext context,
-    required int index,
-    required IconData icon,
-    required IconData activeIcon,
-    required String label,
-    required String route,
-    bool isDisabled = false,
-    String? disabledMessage,
-  }) {
-    final isActive = currentIndex == index;
-    
-    return GestureDetector(
-      onTap: () {
-        if (!isActive && !isDisabled) {
-          context.go(route);
-        } else if (isDisabled && disabledMessage != null) {
-          _showDisabledMessage(context, disabledMessage);
-        }
+        //-------------bottom bar based on roles----------------------// 
+        final List<BottomNavigationBarItem> items = [ 
+          BottomNavigationBarItem(
+            icon: Icon(
+              Icons.dashboard_rounded,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
+            activeIcon: Icon(
+              Icons.dashboard_rounded,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
+            label: 'Dashboard',
+          ),
+         
+          if (isFlutterDeveloper)
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.event_note_outlined,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              ),
+              activeIcon: Icon(
+                Icons.event_note,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              ),
+              label: 'Leave',
+            )
+          else
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.location_on_outlined,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+                color: !isCheckedIn ? Colors.grey.withOpacity(0.4) : null,
+              ),
+              activeIcon: Icon(
+                Icons.location_on_rounded,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              ),
+              label: 'VMS',
+            ),
+          BottomNavigationBarItem(
+            icon: Icon(
+              Icons.login_outlined,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
+            activeIcon: Icon(
+              Icons.login_rounded,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
+            label: 'Check-in',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(
+              Icons.person_outline_rounded,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
+            activeIcon: Icon(
+              Icons.person_rounded,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+            ),
+            label: 'Profile',
+          ),
+        ];
+
+        return BottomNavigationBar(
+          currentIndex: currentIndex >= 0 && currentIndex < items.length
+              ? currentIndex
+              : 0,
+          onTap: (index) {
+            String route;
+            bool isDisabled = false;
+
+            switch (index) {
+              case 0:
+                route = '/dashboard';
+                break;
+              case 1:
+                if (isFlutterDeveloper) {
+                  route = '/leave/application';
+                } else {
+                  route = '/visit/management';
+                  isDisabled = !isCheckedIn;
+                }
+                break;
+              case 2:
+                route = '/checkin-checkout';
+                break;
+              case 3:
+                route = '/profile';
+                break;
+              default:
+                route = '/dashboard';
+            }
+
+            if (isDisabled) {
+              _showDisabledMessage(context, 'Please check in first');
+            } else if (currentIndex != index) {
+              context.go(route);
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          items: items,
+          selectedItemColor: AppTheme.primaryColor,
+          unselectedItemColor: Colors.grey,
+          selectedFontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
+          unselectedFontSize: ResponsiveUtils.getResponsiveFontSize(
+            context,
+            11,
+          ),
+          iconSize: ResponsiveUtils.getResponsiveIconSize(context, 24),
+          elevation: ResponsiveUtils.getResponsiveElevation(context, 8),
+          backgroundColor: Colors.white,
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          selectedLabelStyle: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
+          ),
+          unselectedLabelStyle: TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 11),
+          ),
+        );
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive 
-              ? AppTheme.primaryColor.withOpacity(0.1)
-              : isDisabled
-                  ? Colors.grey.withOpacity(0.1)
-                  : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isActive 
-                    ? AppTheme.primaryColor
-                    : isDisabled
-                        ? Colors.grey.withOpacity(0.3)
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: isActive ? [
-                  BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ] : null,
-              ),
-              child: Icon(
-                isActive ? activeIcon : icon,
-                color: isActive 
-                    ? Colors.white
-                    : isDisabled
-                        ? Colors.grey.withOpacity(0.4)
-                        : Colors.grey.withOpacity(0.6),
-                size: 24,
-              ),
-            ),
-            const SizedBox(height: 4),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
-              style: TextStyle(
-                color: isActive 
-                    ? AppTheme.primaryColor
-                    : isDisabled
-                        ? Colors.grey.withOpacity(0.4)
-                        : Colors.grey.withOpacity(0.6),
-                fontSize: 11,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              ),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
   void _showDisabledMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          style: TextStyle(
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
+          ),
+        ),
         backgroundColor: AppTheme.warningColor,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+          ),
+        ),
         action: SnackBarAction(
           label: 'Check In',
           textColor: Colors.white,
