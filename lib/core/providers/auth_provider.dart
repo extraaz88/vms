@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
-import '../../services/assigned_leads_service.dart';
-import '../../services/lead_dropdown_service.dart';
+import '../../services/sales/assigned_leads_service.dart';
+import '../../services/sales/lead_dropdown_service.dart';
 import 'location_provider.dart';
 import '../../services/checkin_reminder_service.dart';
 

@@ -21,23 +21,50 @@ class CustomBottomNavigation extends StatelessWidget {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         final user = authProvider.user;
-        final isFlutterDeveloper = user?.isFlutterDeveloper ?? false;
+        final isSalesPerson = user?.isSalesPerson ?? false;
 
-        //-------------bottom bar based on roles----------------------// 
-        final List<BottomNavigationBarItem> items = [ 
+        //-------------bottom bar based on roles----------------------//
+        final List<BottomNavigationBarItem> items = [
           BottomNavigationBarItem(
             icon: Icon(
-              Icons.dashboard_rounded,
+              Icons.home_outlined,
               size: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
             activeIcon: Icon(
-              Icons.dashboard_rounded,
+              Icons.home,
               size: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
             label: 'Dashboard',
           ),
-         
-          if (isFlutterDeveloper)
+
+          // Sales person ke liye: Visits aur Leads
+          // Developer ke liye: Leave
+          if (isSalesPerson) ...[
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.description_outlined,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+                color: !isCheckedIn ? Colors.grey.withOpacity(0.4) : null,
+              ),
+              activeIcon: Icon(
+                Icons.description,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              ),
+              label: 'Visits',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.people_outline,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              ),
+              activeIcon: Icon(
+                Icons.people,
+                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
+              ),
+              label: 'Leads',
+            ),
+          ] else ...[
+            // Developer ke liye Leave
             BottomNavigationBarItem(
               icon: Icon(
                 Icons.event_note_outlined,
@@ -48,38 +75,26 @@ class CustomBottomNavigation extends StatelessWidget {
                 size: ResponsiveUtils.getResponsiveIconSize(context, 24),
               ),
               label: 'Leave',
-            )
-          else
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.location_on_outlined,
-                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
-                color: !isCheckedIn ? Colors.grey.withOpacity(0.4) : null,
-              ),
-              activeIcon: Icon(
-                Icons.location_on_rounded,
-                size: ResponsiveUtils.getResponsiveIconSize(context, 24),
-              ),
-              label: 'VMS',
             ),
+          ],
           BottomNavigationBarItem(
             icon: Icon(
               Icons.login_outlined,
               size: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
             activeIcon: Icon(
-              Icons.login_rounded,
+              Icons.login,
               size: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
             label: 'Check-in',
           ),
           BottomNavigationBarItem(
             icon: Icon(
-              Icons.person_outline_rounded,
+              Icons.person_outline,
               size: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
             activeIcon: Icon(
-              Icons.person_rounded,
+              Icons.person,
               size: ResponsiveUtils.getResponsiveIconSize(context, 24),
             ),
             label: 'Profile',
@@ -99,17 +114,34 @@ class CustomBottomNavigation extends StatelessWidget {
                 route = '/dashboard';
                 break;
               case 1:
-                if (isFlutterDeveloper) {
-                  route = '/leave/application';
-                } else {
+                if (isSalesPerson) {
+                  // Sales: Visits
                   route = '/visit/management';
                   isDisabled = !isCheckedIn;
+                } else {
+                  // Developer: Leave Application
+                  route = '/leave/application';
                 }
                 break;
               case 2:
-                route = '/checkin-checkout';
+                if (isSalesPerson) {
+                  // Sales: Leads
+                  route = '/leads';
+                } else {
+                  // Developer: Check-in
+                  route = '/checkin-checkout';
+                }
                 break;
               case 3:
+                // Check-in (Sales) ya Profile (Developer)
+                if (isSalesPerson) {
+                  route = '/checkin-checkout';
+                } else {
+                  route = '/profile';
+                }
+                break;
+              case 4:
+                // Profile (Sales only - 5 items)
                 route = '/profile';
                 break;
               default:

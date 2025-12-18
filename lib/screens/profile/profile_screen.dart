@@ -26,7 +26,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: Text(
           'Profile',
-          style: TextStyle(fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20)),
+          style: TextStyle(
+            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
+          ),
         ),
         // actions: [
         //   IconButton(
@@ -53,17 +55,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // Profile Header
                       _buildProfileHeader(user),
 
-                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
+                      SizedBox(
+                        height:
+                            ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                      ),
 
                       // Profile Information
                       _buildProfileInformation(user),
 
-                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
+                      SizedBox(
+                        height:
+                            ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                      ),
 
                       // Settings Section
                       _buildSettingsSection(),
 
-                      SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.5),
+                      SizedBox(
+                        height:
+                            ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+                      ),
 
                       // Logout Button
                       _buildLogoutButton(),
@@ -75,10 +86,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         },
       ),
-      bottomNavigationBar: Consumer<VisitProvider>(
-        builder: (context, visitProvider, child) {
+      bottomNavigationBar: Consumer2<VisitProvider, AuthProvider>(
+        builder: (context, visitProvider, authProvider, child) {
+          final isFlutterDeveloper =
+              authProvider.user?.isFlutterDeveloper ?? false;
+          final profileIndex = isFlutterDeveloper ? 3 : 4;
+
           return CustomBottomNavigation(
-            currentIndex: 3,
+            currentIndex: profileIndex,
             isCheckedIn: visitProvider.hasActiveVisit,
           );
         },
@@ -95,7 +110,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 20)),
+        borderRadius: BorderRadius.circular(
+          ResponsiveUtils.getResponsiveBorderRadius(context, 20),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppTheme.primaryColor.withOpacity(0.3),
@@ -108,29 +125,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           // Avatar
           Container(
-            width: ResponsiveUtils.getResponsiveIconSize(context, 100).toDouble(),
-            height: ResponsiveUtils.getResponsiveIconSize(context, 100).toDouble(),
+            width: ResponsiveUtils.getResponsiveIconSize(
+              context,
+              100,
+            ).toDouble(),
+            height: ResponsiveUtils.getResponsiveIconSize(
+              context,
+              100,
+            ).toDouble(),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveIconSize(context, 50).toDouble()),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveIconSize(context, 50).toDouble(),
+              ),
               border: Border.all(color: Colors.white, width: 4),
             ),
             child: user.avatar != null
                 ? ClipRRect(
-                    borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveIconSize(context, 46).toDouble()),
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveUtils.getResponsiveIconSize(
+                        context,
+                        46,
+                      ).toDouble(),
+                    ),
                     child: Image.network(
                       user.avatar!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
                         return Icon(
                           Icons.person,
-                          size: ResponsiveUtils.getResponsiveIconSize(context, 50),
+                          size: ResponsiveUtils.getResponsiveIconSize(
+                            context,
+                            50,
+                          ),
                           color: Colors.white,
                         );
                       },
                     ),
                   )
-                : Icon(Icons.person, size: ResponsiveUtils.getResponsiveIconSize(context, 50), color: Colors.white),
+                : Icon(
+                    Icons.person,
+                    size: ResponsiveUtils.getResponsiveIconSize(context, 50),
+                    color: Colors.white,
+                  ),
           ),
 
           SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
@@ -145,7 +182,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25),
+          SizedBox(
+            height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+          ),
 
           // Role
           Container(
@@ -155,7 +194,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+              ),
             ),
             child: Text(
               user.role.toUpperCase(),
@@ -173,9 +214,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // Email
           Text(
             user.email,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Colors.white70,
               fontSize: ResponsiveUtils.getResponsiveFontSize(context, 14),
             ),
@@ -190,7 +229,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: ResponsiveUtils.getResponsivePadding(context),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
+            borderRadius: BorderRadius.circular(
+              ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
@@ -204,15 +245,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 'Profile Information',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: ResponsiveUtils.getResponsiveFontSize(context, 22),
                 ),
               ),
 
-              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25),
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25,
+              ),
 
               _buildInfoRow(
                 'Full Name',
@@ -260,16 +301,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildInfoRow(String label, String value, IconData icon, Color color) {
     return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context)),
+      padding: EdgeInsets.only(
+        bottom: ResponsiveUtils.getResponsiveSpacing(context),
+      ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
+            padding: EdgeInsets.all(
+              ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+            ),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 8)),
+              borderRadius: BorderRadius.circular(
+                ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+              ),
             ),
-            child: Icon(icon, color: color, size: ResponsiveUtils.getResponsiveIconSize(context, 20)),
+            child: Icon(
+              icon,
+              color: color,
+              size: ResponsiveUtils.getResponsiveIconSize(context, 20),
+            ),
           ),
 
           SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
@@ -283,16 +334,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondaryColor,
                     fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      12,
+                    ),
                   ),
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.125),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.125,
+                ),
                 Text(
                   value,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppTheme.textPrimaryColor,
                     fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveUtils.getResponsiveFontSize(context, 16),
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      16,
+                    ),
                   ),
                 ),
               ],
@@ -308,7 +367,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: ResponsiveUtils.getResponsivePadding(context),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 16)),
+            borderRadius: BorderRadius.circular(
+              ResponsiveUtils.getResponsiveBorderRadius(context, 16),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.05),
@@ -327,7 +388,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
 
-              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25),
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 1.25,
+              ),
 
               // _buildSettingsItem(
               //   'Notifications',
@@ -392,7 +455,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   'When enabled, the app will automatically checkout from active visits if:',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                ),
                 const Text('• Location permission is denied'),
                 const Text('• Location service is disabled'),
                 const Text('• GPS is turned off'),
@@ -426,12 +491,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(
             children: [
               Container(
-                padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
+                padding: EdgeInsets.all(
+                  ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(ResponsiveUtils.getResponsiveBorderRadius(context, 8)),
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveUtils.getResponsiveBorderRadius(context, 8),
+                  ),
                 ),
-                child: Icon(icon, color: AppTheme.primaryColor, size: ResponsiveUtils.getResponsiveIconSize(context, 20)),
+                child: Icon(
+                  icon,
+                  color: AppTheme.primaryColor,
+                  size: ResponsiveUtils.getResponsiveIconSize(context, 20),
+                ),
               ),
 
               SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context)),
@@ -446,7 +519,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.125),
+                    SizedBox(
+                      height:
+                          ResponsiveUtils.getResponsiveSpacing(context) * 0.125,
+                    ),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -531,7 +607,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           color: AppTheme.primaryColor,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(Icons.location_on, color: Colors.white, size: ResponsiveUtils.getResponsiveIconSize(context, 32)),
+        child: Icon(
+          Icons.location_on,
+          color: Colors.white,
+          size: ResponsiveUtils.getResponsiveIconSize(context, 32),
+        ),
       ),
       children: [
         const Text(

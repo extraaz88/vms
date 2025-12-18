@@ -181,6 +181,8 @@ class MockDataService {
     String? leadPhone,
     required double latitude,
     required double longitude,
+    String? connectingTime,
+    String? status,
   }) async {
     await Future.delayed(const Duration(milliseconds: 500));
 
@@ -207,6 +209,7 @@ class MockDataService {
         'latitude': latitude,
         'longitude': longitude,
         'notes': visitingReason,
+        'connecting_time': connectingTime,
         'check_out_notes': null,
         'user_id': currentUser['id'],
         'status': 'completed',

@@ -10,7 +10,7 @@ import '../utils/auth_helper.dart';
 import 'mock_data_service.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://bharatbill.live/api';
+  static const String baseUrl = 'https://crm.bharatbill.live/api';
   String? _authToken = '26d9vCKPrU8725q0Iuf3Z9BaWWR6sYM1n1QehMpwf5107d83';
   static bool _useMockData = false; // Set to false to use real API
   bool _isDeveloper = false; // Track if current user is a developer
@@ -647,8 +647,10 @@ class ApiService {
   }
 
   // Get All Leads for User - Real API implementation
+  // Endpoint: /lead/{created_by}
   Future<List<Map<String, dynamic>>> getUserLeads(String userId) async {
     final headers = _getHeaders();
+    // Using created_by as the path parameter (same as userId)
     final url = '$baseUrl/lead/$userId';
 
     developer.log(
@@ -657,7 +659,7 @@ class ApiService {
       level: 800,
     );
     developer.log('URL: $url', name: 'ApiService.UserLeads', level: 800);
-    developer.log('User ID: $userId', name: 'ApiService.UserLeads', level: 800);
+    developer.log('Created By (User ID): $userId', name: 'ApiService.UserLeads', level: 800);
     developer.log(
       'Bearer Token: ${_authToken?.substring(0, 20)}...',
       name: 'ApiService.UserLeads',
@@ -919,6 +921,8 @@ class ApiService {
     String? leadPhone,
     required double latitude,
     required double longitude,
+    String? connectingTime,
+    String? status,
   }) async {
     if (_useMockData) {
       return await MockDataService.mockCreateVisitDetails(
@@ -933,6 +937,8 @@ class ApiService {
         leadPhone: leadPhone,
         latitude: latitude,
         longitude: longitude,
+        connectingTime: connectingTime,
+        status: status,
       );
     }
 
@@ -973,6 +979,12 @@ class ApiService {
     if (leadName != null) request.fields['lead_name'] = leadName;
     if (leadEmail != null) request.fields['lead_email'] = leadEmail;
     if (leadPhone != null) request.fields['lead_phone'] = leadPhone;
+    if (status != null && status.isNotEmpty) {
+      request.fields['status'] = status;
+    }
+    if (connectingTime != null && connectingTime.isNotEmpty) {
+      request.fields['connecting_time'] = connectingTime;
+    }
 
     // Add photo file if available
     if (photoPath != null && photoPath.isNotEmpty) {

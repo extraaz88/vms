@@ -7,7 +7,7 @@ import '../core/theme/app_theme.dart';
 import '../core/providers/location_provider.dart';
 import '../models/lead_model.dart';
 import '../services/api_service.dart';
-import '../services/lead_dropdown_service.dart';
+import '../services/sales/lead_dropdown_service.dart';
 
 class VisitDetailsForm extends StatefulWidget {
   final Function(
@@ -55,65 +55,131 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
   final _personController = TextEditingController();
   final _reasonController = TextEditingController();
   final _areaController = TextEditingController();
+  final _connectingTimeController = TextEditingController();
   File? _selectedPhoto;
-  bool _isLoadingLocation = false;
   bool _isSubmitting = false;
   Lead? _selectedLead;
   String? _selectedStatus;
+  TimeOfDay? _connectingTime;
   String? _photoError;
-  
+
   // API data for status dropdown
   List<String> _statusList = [];
   bool _isLoadingStatus = true;
 
+  bool get _shouldShowConnectingTime => _isStatusRequiringTime(_selectedStatus);
+
+  bool _isStatusRequiringTime(String? status) {
+    if (status == null) return false;
+    final normalized = status.toLowerCase();
+    return normalized.contains('in process') ||
+        normalized.contains('demo pending');
+  }
+
+  void _clearConnectingTime() {
+    _connectingTime = null;
+    _connectingTimeController.clear();
+  }
+
   @override
   void initState() {
     super.initState();
-    _placeController.text = widget.initialPlace ?? '';
-    _personController.text = widget.initialPerson ?? '';
+
+    // If a lead is preselected and leads list is available, find the matching lead from the list
+    // This ensures reference equality for the dropdown
+    if (widget.selectedLead != null && widget.leads.isNotEmpty) {
+      try {
+        _selectedLead = widget.leads.firstWhere(
+          (lead) => lead.id == widget.selectedLead!.id,
+        );
+        debugPrint(
+          '✅ Found preselected lead in initState: ${_selectedLead!.name}',
+        );
+      } catch (e) {
+        // Lead not found in list, use the widget's selectedLead
+        _selectedLead = widget.selectedLead;
+        debugPrint('⚠️ Preselected lead not in leads list during initState');
+      }
+    } else {
+      _selectedLead = widget.selectedLead;
+    }
+
+    // Auto-fill visiting place if lead is preselected
+    // Priority: Address > Name (company removed)
+    if (_selectedLead != null) {
+      String visitingPlace = '';
+      if (_selectedLead!.address != null &&
+          _selectedLead!.address!.trim().isNotEmpty) {
+        visitingPlace = _selectedLead!.address!.trim();
+      } else {
+        visitingPlace = _selectedLead!.name;
+      }
+
+      // Always use auto-filled value from lead if lead is preselected
+      // This ensures drawer navigation always auto-fills properly
+      _placeController.text = visitingPlace;
+      _personController.text = _selectedLead!.name;
+    } else {
+      // Only use initialPlace if no lead is preselected
+      _placeController.text = widget.initialPlace ?? '';
+      _personController.text = widget.initialPerson ?? '';
+    }
+
     _reasonController.text = widget.initialReason ?? '';
     _areaController.text = widget.initialArea ?? '';
     _selectedPhoto = widget.initialPhoto;
-    _selectedLead = widget.selectedLead;
 
     // Auto-fetch area from location
     _fetchCurrentArea();
-    
+
     // Load status dropdown from API
     _loadStatusDropdown();
   }
-  
+
   // Load status dropdown from API
   Future<void> _loadStatusDropdown() async {
     try {
       setState(() {
         _isLoadingStatus = true;
       });
-      
+
       // Clear cache to get fresh data
       LeadDropdownService.clearCache();
-      
+
       // Load status list from API
       final statusList = await LeadDropdownService.getLeadStatusList();
-      
+
       setState(() {
         _statusList = statusList;
         if (_statusList.isNotEmpty) {
           _selectedStatus = _statusList.first;
         }
         _isLoadingStatus = false;
+        if (!_shouldShowConnectingTime) {
+          _clearConnectingTime();
+        }
       });
-      
+
       debugPrint('✅ Status dropdown loaded: $_statusList');
     } catch (e) {
       debugPrint('❌ Error loading status dropdown: $e');
       setState(() {
         // Use fallback data
-        _statusList = ['New', 'Assigned', 'In Process', 'Converted', 'Recycled', 'Dead'];
+        _statusList = [
+          'New',
+          'Assigned',
+          'In Process',
+          'Converted',
+          'Recycled',
+          'Dead',
+        ];
         if (_statusList.isNotEmpty) {
           _selectedStatus = _statusList.first;
         }
         _isLoadingStatus = false;
+        if (!_shouldShowConnectingTime) {
+          _clearConnectingTime();
+        }
       });
     }
   }
@@ -126,18 +192,45 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
     if (widget.selectedLead != oldWidget.selectedLead) {
       setState(() {
         _selectedLead = widget.selectedLead;
+
+        // Auto-fill visiting place when lead is updated
+        // Priority: Address > Name (company removed)
+        if (widget.selectedLead != null) {
+          String visitingPlace = '';
+          if (widget.selectedLead!.address != null &&
+              widget.selectedLead!.address!.trim().isNotEmpty) {
+            visitingPlace = widget.selectedLead!.address!.trim();
+          } else {
+            visitingPlace = widget.selectedLead!.name;
+          }
+
+          // Only auto-fill if place field is empty or was previously auto-filled
+          if (_placeController.text.isEmpty ||
+              _placeController.text == oldWidget.selectedLead?.address ||
+              _placeController.text == oldWidget.selectedLead?.name) {
+            _placeController.text = visitingPlace;
+          }
+
+          // Auto-fill visiting person
+          if (_personController.text.isEmpty ||
+              _personController.text == oldWidget.selectedLead?.name) {
+            _personController.text = widget.selectedLead!.name;
+          }
+        }
       });
     }
 
-    // Debug: Log when leads list changes
+    // Handle when leads list changes
     if (widget.leads.length != oldWidget.leads.length) {
       debugPrint(
         '📋 Leads list updated: ${oldWidget.leads.length} -> ${widget.leads.length} leads available',
       );
+    }
 
-      // If widget has a selectedLead and it's in the new leads list, use it
-      if (widget.selectedLead != null &&
-          widget.leads.any((lead) => lead.id == widget.selectedLead!.id)) {
+    // If widget has a selectedLead and it's in the leads list, use it
+    // This handles both cases: when leads list updates and when selectedLead changes
+    if (widget.selectedLead != null && widget.leads.isNotEmpty) {
+      if (widget.leads.any((lead) => lead.id == widget.selectedLead!.id)) {
         // Find the actual lead object from the list (to ensure reference equality)
         final leadFromList = widget.leads.firstWhere(
           (lead) => lead.id == widget.selectedLead!.id,
@@ -150,23 +243,23 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
             _selectedLead = leadFromList;
           });
         }
-      } else if (widget.selectedLead != null &&
-          !widget.leads.any((lead) => lead.id == widget.selectedLead!.id)) {
+      } else {
         debugPrint(
-          '⚠️ Widget selectedLead not in new leads list: ${widget.selectedLead!.name}',
+          '⚠️ Widget selectedLead not in leads list: ${widget.selectedLead!.name}',
         );
       }
+    }
 
-      // If current selected lead is not in the new leads list, clear it
-      if (_selectedLead != null &&
-          !widget.leads.any((lead) => lead.id == _selectedLead!.id)) {
-        debugPrint(
-          '⚠️ Current selected lead not in new list, clearing selection',
-        );
-        setState(() {
-          _selectedLead = null;
-        });
-      }
+    // If current selected lead is not in the new leads list, clear it
+    if (_selectedLead != null &&
+        widget.leads.isNotEmpty &&
+        !widget.leads.any((lead) => lead.id == _selectedLead!.id)) {
+      debugPrint(
+        '⚠️ Current selected lead not in new list, clearing selection',
+      );
+      setState(() {
+        _selectedLead = null;
+      });
     }
   }
 
@@ -176,6 +269,7 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
     _personController.dispose();
     _reasonController.dispose();
     _areaController.dispose();
+    _connectingTimeController.dispose();
     super.dispose();
   }
 
@@ -199,45 +293,24 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Section Title
             Row(
               children: [
-                Icon(Icons.location_on, color: AppTheme.primaryColor, size: 24),
-                const SizedBox(width: 12),
+                Icon(Icons.location_on, color: AppTheme.primaryColor, size: 20),
+                const SizedBox(width: 8),
                 Text(
                   'Visit Details',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
 
-            // Visiting Area Field (Auto-fetched, Read-only)
-            TextFormField(
-              controller: _areaController,
-              enabled: false,
-              decoration: InputDecoration(
-                labelText: 'Visiting Area',
-                hintText: 'Auto-detected from your location',
-                prefixIcon: const Icon(Icons.location_city),
-                suffixIcon: _isLoadingLocation
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : const Icon(Icons.location_searching),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
-              ),
-            ),
+            // Assigned Lead Dropdown
+            _buildLeadDropdown(),
             const SizedBox(height: 16),
 
             // Visiting Place Field
@@ -246,7 +319,6 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
               decoration: InputDecoration(
                 labelText: 'Visiting Place',
                 hintText: 'Enter the place you are visiting',
-                prefixIcon: const Icon(Icons.place),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -262,9 +334,6 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
-            // Assigned Lead Dropdown
-            _buildLeadDropdown(),
             const SizedBox(height: 16),
 
             // Photo Field
@@ -289,31 +358,6 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Please enter visiting person';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Visiting Reason Field
-            TextFormField(
-              controller: _reasonController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                labelText: 'Remark',
-                hintText: 'Enter the remark for your visit',
-                prefixIcon: const Icon(Icons.description),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppTheme.primaryColor),
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter remark';
                 }
                 return null;
               },
@@ -348,13 +392,15 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                     decoration: InputDecoration(
                       labelText: 'Status',
                       hintText: 'Select status',
-                      prefixIcon: const Icon(Icons.flag),
+                      prefixIcon: const Icon(Icons.check_circle),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppTheme.primaryColor),
+                        borderSide: const BorderSide(
+                          color: AppTheme.primaryColor,
+                        ),
                       ),
                     ),
                     items: _statusList.map((String status) {
@@ -366,6 +412,9 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                     onChanged: (String? newValue) {
                       setState(() {
                         _selectedStatus = newValue;
+                        if (!_isStatusRequiringTime(newValue)) {
+                          _clearConnectingTime();
+                        }
                       });
                     },
                     validator: (value) {
@@ -375,6 +424,35 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                       return null;
                     },
                   ),
+            if (_shouldShowConnectingTime) ...[
+              const SizedBox(height: 16),
+              _buildConnectingTimeField(),
+            ],
+            const SizedBox(height: 16),
+
+            // Remark Field
+            TextFormField(
+              controller: _reasonController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Remark',
+                hintText: 'Enter the remark for your visit',
+                prefixIcon: const Icon(Icons.description),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppTheme.primaryColor),
+                ),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter remark';
+                }
+                return null;
+              },
+            ),
             const SizedBox(height: 24),
 
             // Action Buttons
@@ -384,10 +462,18 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                   child: OutlinedButton(
                     onPressed: widget.onCancel,
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: AppTheme.primaryColor),
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.grey[700],
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Colors.grey[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    child: const Text('Cancel'),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -396,7 +482,11 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                     onPressed: _isSubmitting ? null : _submitForm,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     child: _isSubmitting
                         ? const SizedBox(
@@ -410,8 +500,11 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                             ),
                           )
                         : const Text(
-                            'Save Details',
-                            style: TextStyle(color: Colors.white),
+                            'Save',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                   ),
                 ),
@@ -452,6 +545,9 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
         }
 
         final apiService = ApiService();
+        final connectingTimeValue = _shouldShowConnectingTime
+            ? _connectingTimeController.text.trim()
+            : null;
 
         // Prepare photo path if available
         String? photoPath;
@@ -475,6 +571,11 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
           leadPhone: _selectedLead?.phone,
           latitude: locationProvider.currentPosition!.latitude,
           longitude: locationProvider.currentPosition!.longitude,
+          connectingTime:
+              (connectingTimeValue != null && connectingTimeValue.isNotEmpty)
+              ? connectingTimeValue
+              : null,
+          status: _selectedStatus,
         );
 
         if (result['status'] == 'success') {
@@ -525,10 +626,6 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
   }
 
   Future<void> _fetchCurrentArea() async {
-    setState(() {
-      _isLoadingLocation = true;
-    });
-
     try {
       final locationProvider = context.read<LocationProvider>();
       await locationProvider.getCurrentLocation();
@@ -547,10 +644,6 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
     } catch (e) {
       setState(() {
         _areaController.text = 'Unable to detect area';
-      });
-    } finally {
-      setState(() {
-        _isLoadingLocation = false;
       });
     }
   }
@@ -642,11 +735,17 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Visit Place Photo',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        Row(
+          children: [
+            Icon(Icons.camera_alt, color: AppTheme.primaryColor, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Visit Place Photo',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         GestureDetector(
@@ -660,7 +759,7 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                     ? AppTheme.errorColor
                     : Colors.grey[300]!,
                 width: 2,
-                style: BorderStyle.solid,
+                style: BorderStyle.values[1], // Dashed border
               ),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -702,14 +801,37 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                       ),
                     ],
                   )
-                : Column(
+                : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.camera_alt, size: 40, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Tap to take photo',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.folder,
+                          color: AppTheme.primaryColor,
+                          size: 32,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: _showImagePickerOptions,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppTheme.primaryColor,
+                          side: BorderSide(color: AppTheme.primaryColor),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text('Browse files'),
                       ),
                     ],
                   ),
@@ -729,6 +851,50 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
   void _showImagePickerOptions() {
     // Directly open camera when tapped
     _pickImage('camera');
+  }
+
+  Widget _buildConnectingTimeField() {
+    return TextFormField(
+      controller: _connectingTimeController,
+      readOnly: true,
+      decoration: InputDecoration(
+        labelText: 'Connecting Time',
+        hintText: 'Select connecting time',
+        prefixIcon: const Icon(Icons.access_time),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.schedule),
+          onPressed: _pickConnectingTime,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppTheme.primaryColor),
+        ),
+      ),
+      validator: (value) {
+        if (_shouldShowConnectingTime &&
+            (value == null || value.trim().isEmpty)) {
+          return 'Please select connecting time';
+        }
+        return null;
+      },
+      onTap: _pickConnectingTime,
+    );
+  }
+
+  Future<void> _pickConnectingTime() async {
+    final initialTime = _connectingTime ?? TimeOfDay.now();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+    );
+
+    if (picked != null) {
+      setState(() {
+        _connectingTime = picked;
+        _connectingTimeController.text = picked.format(context);
+      });
+    }
   }
 
   Future<void> _pickImage(String source) async {
@@ -779,32 +945,28 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                'Assigned Lead (${widget.leads.length})',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-              ),
+            Text(
+              'Assigned Lead',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
-            if (widget.onRefreshLeads != null)
-              TextButton.icon(
-                onPressed: widget.isLoadingLeads ? null : widget.onRefreshLeads,
-                icon: widget.isLoadingLeads
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh, size: 18),
-                label: const Text('Refresh'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${widget.leads.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -849,29 +1011,45 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                       ),
                     )
                   : DropdownButtonFormField<Lead>(
-                      key: ValueKey('leads_dropdown_${widget.leads.length}'),
-                      value: _selectedLead,
+                      key: ValueKey(
+                        'leads_dropdown_${widget.leads.length}_${_selectedLead?.id ?? 'none'}',
+                      ),
+                      value:
+                          _selectedLead != null &&
+                              widget.leads.any(
+                                (lead) => lead.id == _selectedLead!.id,
+                              )
+                          ? widget.leads.firstWhere(
+                              (lead) => lead.id == _selectedLead!.id,
+                            )
+                          : null,
                       isExpanded: true,
                       menuMaxHeight: 300,
                       selectedItemBuilder: (BuildContext context) {
+                        // Return widget for each lead - the one at selected index will be shown
                         return widget.leads.map<Widget>((Lead lead) {
-                          return Container(
+                          return Align(
                             alignment: Alignment.centerLeft,
-                            child: Text(
-                              lead.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
                               ),
-                              overflow: TextOverflow.ellipsis,
+                              child: Text(
+                                lead.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           );
                         }).toList();
                       },
                       decoration: InputDecoration(
-                        labelText: 'Select Assigned Lead',
-                        hintText: 'Choose from assigned leads',
-                        prefixIcon: const Icon(Icons.person_search),
+                        hintText: 'Select lead',
+                        prefixIcon: const Icon(Icons.person),
+                        suffixIcon: const Icon(Icons.arrow_drop_down),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -900,9 +1078,10 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,
                                 ),
-                                if (lead.company != null)
+                                if (lead.address != null &&
+                                    lead.address!.trim().isNotEmpty)
                                   Text(
-                                    lead.company!,
+                                    lead.address!,
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: Colors.grey[600],
@@ -930,8 +1109,19 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                               setState(() {
                                 _selectedLead = newValue;
                                 if (newValue != null) {
-                                  _placeController.text =
-                                      newValue.company ?? newValue.name;
+                                  // Auto-fill visiting place with proper priority:
+                                  // 1. Address (if available)
+                                  // 2. Lead name (fallback)
+                                  String visitingPlace = '';
+                                  if (newValue.address != null &&
+                                      newValue.address!.trim().isNotEmpty) {
+                                    visitingPlace = newValue.address!.trim();
+                                  } else {
+                                    visitingPlace = newValue.name;
+                                  }
+                                  _placeController.text = visitingPlace;
+
+                                  // Auto-fill visiting person with lead name
                                   _personController.text = newValue.name;
                                 }
                               });
@@ -945,12 +1135,10 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                     ),
             ),
             const SizedBox(width: 12),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: () {
                 context.push('/leads/create');
               },
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('New Lead'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
                 foregroundColor: Colors.white,
@@ -962,6 +1150,7 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
+              child: const Text('+ New Lead'),
             ),
           ],
         ),
@@ -979,6 +1168,7 @@ class _VisitDetailsFormState extends State<VisitDetailsForm> {
       _selectedPhoto = null;
       _selectedLead = null;
       _selectedStatus = null;
+      _clearConnectingTime();
       _photoError = null;
     });
   }

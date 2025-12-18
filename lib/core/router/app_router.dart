@@ -5,24 +5,23 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../../screens/splash_screen.dart';
 import '../../screens/auth/login_screen.dart';
-import '../../screens/home/dashboard_screen.dart';
-import '../../screens/visits/visit_history_screen.dart';
-import '../../screens/visits/visit_management_screen.dart';
-import '../../screens/visits/visit_details_screen.dart';
-import '../../screens/checkin_checkout/checkin_checkout_screen.dart';
-import '../../screens/tracking/journey_tracking_screen.dart';
-import '../../screens/tracking/live_tracking_screen.dart';
+import '../../screens/sales/sales_dashboard_screen.dart';
+import '../../screens/developer/developer_dashboard_screen.dart';
+import '../../screens/sales/visits/visit_management_screen.dart';
+import '../../screens/sales/visits/visit_details_screen.dart';
+import '../../screens/sales/checkin_checkout/checkin_checkout_screen.dart';
+import '../../screens/sales/tracking/journey_tracking_screen.dart';
+import '../../screens/sales/tracking/live_tracking_screen.dart';
 import '../../screens/profile/profile_screen.dart';
 import '../../screens/test/mock_data_test_screen.dart';
-import '../../screens/leads/lead_list_screen.dart';
-import '../../screens/leads/lead_create_screen.dart';
-import '../../screens/leads/lead_details_screen.dart';
-import '../../screens/leads/assigned_leads_screen.dart';
-import '../../screens/attendance/attendance_screen.dart';
+import '../../screens/sales/leads/lead_list_screen.dart';
+import '../../screens/sales/leads/lead_create_screen.dart';
+import '../../screens/sales/leads/lead_details_screen.dart';
+import '../../screens/developer/attendance/attendance_screen.dart';
 import '../../screens/notifications/notifications_screen.dart';
-import '../../screens/call_logs/call_logs_screen.dart';
-import '../../screens/leave/leave_application_screen.dart';
-import '../../screens/leave/leave_history_screen.dart';
+import '../../screens/sales/call_logs/call_logs_screen.dart';
+import '../../screens/developer/leave/leave_application_screen.dart';
+import '../../screens/developer/leave/leave_history_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -59,10 +58,26 @@ class AppRouter {
       // Authentication Routes
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
 
-      // Main App Routes
+      // Main App Routes - Route to appropriate dashboard based on user role
       GoRoute(
         path: '/dashboard',
-        builder: (context, state) => const DashboardScreen(),
+        builder: (context, state) {
+          final authProvider = context.read<AuthProvider>();
+          final user = authProvider.user;
+          
+          // Priority: Sales person check first
+          // Agar role "sales" ya "field" hai to Sales dashboard
+          // Agar role null/empty/undefined hai ya kuch bhi aur hai to Developer dashboard
+          final isSalesPerson = user?.isSalesPerson ?? false;
+          
+          if (isSalesPerson) {
+            // Sales person - Sales dashboard
+            return const SalesDashboardScreen();
+          } else {
+            // Developer ya koi bhi aur role (null/empty bhi) - Developer dashboard
+            return const DeveloperDashboardScreen();
+          }
+        },
       ),
 
       // Visit Management Routes
@@ -81,10 +96,6 @@ class AppRouter {
         },
       ),
 
-      GoRoute(
-        path: '/visit/history',
-        builder: (context, state) => const VisitHistoryScreen(),
-      ),
       GoRoute(
         path: '/checkin-checkout',
         builder: (context, state) => const CheckinCheckoutScreen(),
@@ -126,11 +137,6 @@ class AppRouter {
           return LeadDetailsScreen(leadId: leadId);
         },
       ),
-      GoRoute(
-        path: '/assigned-leads',
-        builder: (context, state) => const AssignedLeadsScreen(),
-      ),
-
       // Attendance Route
       GoRoute(
         path: '/attendance',

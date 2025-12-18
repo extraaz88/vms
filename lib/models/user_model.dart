@@ -39,18 +39,42 @@ class User {
   }
   
   // Helper method to check if user is Sales person
-  bool get isSalesPerson => 
-      title?.toLowerCase().contains('sales') == true || 
-      role.toLowerCase().contains('sales') == true ||
-      title?.toLowerCase().contains('field') == true ||
-      role.toLowerCase().contains('field') == true;
+  // Sales person tab hi hoga jab type explicitly 'sales' ho
+  // Agar type null, empty, 'user', 'employee', ya kuch bhi aur hai to false (Developer dashboard)
+  bool get isSalesPerson {
+    // Agar role empty hai ya null hai to definitely Sales person nahi hai
+    if (role.isEmpty || role.trim().isEmpty) {
+      return false;
+    }
+    
+    final roleLower = role.toLowerCase().trim();
+    
+    // Sirf type 'sales' ho to Sales person
+    // Type null, empty, 'user', 'employee', ya kuch bhi aur ho to false (Developer dashboard)
+    return roleLower == 'sales';
+  }
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // API se 'type' field aata hai (e.g., "User", "sales", null, etc.)
+    // 'type' ko 'role' mein map karte hain for consistency
+    // Null check properly karte hain
+    final typeValue = json['type'];
+    final roleValue = json['role'];
+    
+    // Agar type null hai ya empty hai, to empty string use karte hain
+    // Sirf explicitly "sales" ho to Sales person, warna Developer
+    String finalRole = '';
+    if (typeValue != null && typeValue.toString().trim().isNotEmpty) {
+      finalRole = typeValue.toString().trim();
+    } else if (roleValue != null && roleValue.toString().trim().isNotEmpty) {
+      finalRole = roleValue.toString().trim();
+    }
+    
     return User(
       id: json['id'].toString(),
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      role: json['role'] ?? json['type'] ?? 'employee',
+      role: finalRole, // Type ko role mein map karte hain
       title: json['title'],
       phone: json['phone'],
       avatar: json['avatar'],

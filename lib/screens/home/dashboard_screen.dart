@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -10,14 +12,14 @@ import '../../core/providers/visit_provider.dart';
 import '../../core/providers/location_provider.dart';
 import '../../core/providers/target_provider.dart';
 import '../../core/providers/checkin_checkout_history_provider.dart';
+import '../../core/providers/notification_provider.dart';
 import '../../models/checkin_checkout_history_model.dart';
 import '../../core/theme/app_theme.dart';
-import '../../widgets/custom_button.dart';
 import '../../widgets/dashboard_card.dart';
 import '../../widgets/custom_drawer.dart';
 import '../../widgets/custom_bottom_navigation.dart';
-import '../../widgets/app_logo.dart';
 import '../../services/location_validation_service.dart';
+import '../../services/sales/assigned_leads_service.dart';
 import '../../utils/responsive_utils.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -27,28 +29,19 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _blinkingController;
+class _DashboardScreenState extends State<DashboardScreen> {
+  // Assigned leads data
+  int _assignedLeadsCount = 0;
+  int _completedLeadsCount = 0;
+  bool _isLoadingAssignedLeads = true;
 
   @override
   void initState() {
     super.initState();
-    _blinkingController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _blinkingController.repeat(reverse: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
     });
-  }
-
-  @override
-  void dispose() {
-    _blinkingController.dispose();
-    super.dispose();
   }
 
   Future<void> _initializeData() async {
@@ -73,6 +66,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Fetch lead count from API if user ID is available
     if (userId != null && userId.isNotEmpty) {
       await targetProvider.fetchLeadCountFromAPI(userId);
+      // Load assigned leads for progress calculation
+      await _loadAssignedLeads(userId);
     }
 
     // Start location tracking for auto checkout (works for all users including developers)
@@ -87,6 +82,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Set up callback to automatically update target when visits are completed
     visitProvider.onVisitCompleted = (int completedCount) {
       targetProvider.updateCompletedVisits(completedCount);
+      // Update completed leads count
+      if (mounted) {
+        setState(() {
+          _completedLeadsCount = completedCount.clamp(0, _assignedLeadsCount);
+        });
+      }
     };
   }
 
@@ -97,10 +98,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     final todayVisitsCount = _getTodayVisitsCount(visitProvider.visits);
     targetProvider.updateCompletedVisits(todayVisitsCount);
 
+    // Update completed leads count
+    if (mounted) {
+      setState(() {
+        _completedLeadsCount = todayVisitsCount.clamp(0, _assignedLeadsCount);
+      });
+    }
+
     debugPrint('\n🔄 DASHBOARD SYNC:');
     debugPrint('═══════════════════════════════════════');
     debugPrint('📊 Today Visits Count: $todayVisitsCount');
     debugPrint('🎯 Target Provider Updated');
+    debugPrint('📋 Completed Leads: $_completedLeadsCount');
     debugPrint('═══════════════════════════════════════');
   }
 
@@ -114,213 +123,200 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Scaffold(
         drawer: const CustomDrawer(),
         backgroundColor: AppTheme.backgroundColor,
+        extendBodyBehindAppBar: false,
         appBar: AppBar(
-          title: Row(
-            children: [
-              AppLogo(
-                width: ResponsiveUtils.getResponsiveIconSize(context, 24),
-                height: ResponsiveUtils.getResponsiveIconSize(context, 24),
-              ),
-              SizedBox(
-                width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-              ),
-              const Text('VMS'),
-            ],
+          backgroundColor: AppTheme.primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
           actions: [
             // Notification Icon
-            IconButton(
-              icon: Stack(
-                children: [
-                  const Icon(Icons.notifications_outlined),
-                  // Badge for unread notifications
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: EdgeInsets.all(
-                        ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
+            Consumer<NotificationProvider>(
+              builder: (context, notificationProvider, child) {
+                final unreadCount = notificationProvider.unreadCount;
+                return IconButton(
+                  icon: Stack(
+                    children: [
+                      const Icon(
+                        Icons.notifications_outlined,
+                        color: Colors.white,
                       ),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      constraints: BoxConstraints(
-                        minWidth: ResponsiveUtils.getResponsiveIconSize(
-                          context,
-                          16,
+                      // Badge for unread notifications (only show if > 0)
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ),
-                        minHeight: 16,
-                      ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              onPressed: () => context.push('/notifications'),
-              tooltip: 'Notifications',
+                  onPressed: () => context.push('/notifications'),
+                  tooltip: 'Notifications',
+                );
+              },
             ),
             IconButton(
-              icon: const Icon(Icons.person_outline),
+              icon: const Icon(Icons.person_outline, color: Colors.white),
               onPressed: () => context.push('/profile'),
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () => _handleLogout(),
             ),
           ],
         ),
         body: RefreshIndicator(
           onRefresh: _initializeData,
+          backgroundColor: Colors.white.withOpacity(0.2),
+          color: Colors.white,
           child: SingleChildScrollView(
-            padding: ResponsiveUtils.getResponsivePadding(context),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Conditionally show content based on role
+                // Green gradient background section (only for header area)
                 Consumer<AuthProvider>(
                   builder: (context, authProvider, child) {
                     final user = authProvider.user;
                     final isFlutterDeveloper =
                         user?.isFlutterDeveloper ?? false;
 
+                    // Don't show header section for developers
                     if (isFlutterDeveloper) {
-                      // Show Flutter Developer specific content (no progress section)
-                      return _buildFlutterDeveloperContent();
-                    } else {
-                      // Show default content for other roles
-                      return Column(
-                        children: [
-                          // Welcome Section
-                          _buildWelcomeSection(),
-
-                          // Current Status
-                          _buildCurrentStatus(),
-
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                1.5,
-                          ),
-
-                          // Statistics Cards
-                          _buildStatisticsCards(),
-
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                1.5,
-                          ),
-
-                          // Lead Management Section
-                          _buildLeadManagementSection(),
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                1.5,
-                          ),
-
-                          // Visiting History Section
-                          _buildVisitingHistorySection(),
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                1.5,
-                          ),
-
-                          // Recent Activity
-                          _buildRecentActivity(),
-                        ],
-                      );
+                      return const SizedBox.shrink();
                     }
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.primaryColor,
+                            AppTheme.primaryDarkColor,
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(30),
+                          bottomRight: Radius.circular(30),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: ResponsiveUtils.getResponsivePadding(
+                              context,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Welcome Section (Target Amount Card) - Show first
+                                _buildWelcomeSection(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                // Rest of the content with normal background
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    final user = authProvider.user;
+                    final isFlutterDeveloper =
+                        user?.isFlutterDeveloper ?? false;
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.backgroundColor,
+                        borderRadius: isFlutterDeveloper
+                            ? BorderRadius.zero
+                            : const BorderRadius.only(
+                                topLeft: Radius.circular(30),
+                                topRight: Radius.circular(30),
+                              ),
+                      ),
+                      padding: ResponsiveUtils.getResponsivePadding(context),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isFlutterDeveloper) ...[
+                            // Show Flutter Developer specific content
+                            _buildFlutterDeveloperContent(),
+                          ] else ...[
+                            // Show default content for other roles
+                            Column(
+                              children: [
+                                SizedBox(
+                                  height:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      1,
+                                ),
+
+                                // Current Status (Today's Status)
+                                _buildCurrentStatus(),
+
+                                SizedBox(
+                                  height:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      1,
+                                ),
+
+                                // Statistics Cards (Today's Progress)
+                                _buildStatisticsCards(),
+
+                                SizedBox(
+                                  height:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      2,
+                                ),
+
+                                // Lead Management Section
+                                _buildLeadManagementSection(),
+
+                                // Bottom padding for better scrolling
+                                SizedBox(
+                                  height:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      2,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
                   },
                 ),
               ],
             ),
           ),
-        ),
-        floatingActionButton: Consumer3<VisitProvider, LocationProvider, AuthProvider>(
-          builder: (context, visitProvider, locationProvider, authProvider, child) {
-            // Show FAB for all users including Flutter Developers
-            final hasLocation = locationProvider.currentPosition != null;
-            final isInOffice = hasLocation
-                ? LocationValidationService.isUserInOffice(
-                    locationProvider.currentPosition!,
-                  )
-                : false;
-
-            // Check user role - only Flutter Developers need to be in office
-            final isFlutterDeveloper =
-                authProvider.user?.isFlutterDeveloper ?? false;
-            final isSalesPerson = authProvider.user?.isSalesPerson ?? false;
-
-            // For check-in: Flutter developers must be in office, sales people can check-in from anywhere
-            // For check-out: location doesn't matter for anyone
-            final canCheckIn = isSalesPerson
-                ? hasLocation // Sales people just need location, can be anywhere
-                : (hasLocation && isInOffice); // Developers must be in office
-
-            // Get check-in ID from API (stored in VisitProvider)
-            final activeCheckInId = visitProvider.activeCheckInId;
-            final hasActiveCheckIn = visitProvider.hasActiveVisit;
-
-            // Determine which visit ID to use for checkout
-            String? checkoutVisitId;
-            if (hasActiveCheckIn) {
-              // Priority: 1. activeCheckInId from API, 2. currentVisit.id, 3. activeVisit.id
-              checkoutVisitId =
-                  activeCheckInId ??
-                  visitProvider.currentVisit?.id ??
-                  visitProvider.activeVisit?.id;
-            }
-
-            return CustomFloatingActionButton(
-              icon: hasActiveCheckIn ? Icons.check_outlined : Icons.location_on,
-              tooltip: hasActiveCheckIn
-                  ? 'Check Out'
-                  : canCheckIn
-                  ? 'Check In'
-                  : isFlutterDeveloper
-                  ? 'You are not in office'
-                  : isSalesPerson
-                  ? 'Location not available'
-                  : 'Location not available',
-              onPressed: () {
-                if (hasActiveCheckIn && checkoutVisitId != null) {
-                  // User is checked in, navigate to checkout with the ID from API
-                  context.push('/visit/checkout/$checkoutVisitId');
-                } else if (canCheckIn) {
-                  // User can check in
-                  context.push('/visit/checkin');
-                } else {
-                  // Show error message based on user role
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        hasLocation
-                            ? (isFlutterDeveloper
-                                  ? 'You are not in office. Please come within 50 meters of the office to check in.'
-                                  : isSalesPerson
-                                  ? 'Location not available. Please enable location services to check in.'
-                                  : 'Location not available. Please enable location services.')
-                            : 'Location not available. Please enable location services.',
-                      ),
-                      backgroundColor: Colors.orange,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-            );
-          },
         ),
         bottomNavigationBar: Consumer<VisitProvider>(
           builder: (context, visitProvider, child) {
@@ -366,7 +362,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildCurrentStatus() {
     return Consumer2<VisitProvider, LocationProvider>(
       builder: (context, visitProvider, locationProvider, child) {
-        final currentVisit = visitProvider.currentVisit;
         final hasActiveVisit = visitProvider.hasActiveVisit;
         final Duration? autoCheckoutRemaining =
             locationProvider.autoCheckoutRemaining;
@@ -378,7 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         return Container(
           margin: EdgeInsets.only(
-            bottom: ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+            bottom: ResponsiveUtils.getResponsiveSpacing(context),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,27 +416,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 child: Row(
                   children: [
-                    // Status Icon
+                    // Status Icon - Green square with checkmark
                     Container(
-                      padding: EdgeInsets.all(
-                        ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-                      ),
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
-                        color: hasActiveVisit
-                            ? AppTheme.warningColor.withOpacity(0.1)
-                            : AppTheme.successColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(
-                          ResponsiveUtils.getResponsiveBorderRadius(
-                            context,
-                            12,
-                          ),
-                        ),
+                        color: AppTheme.primaryColor,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(
-                        hasActiveVisit ? Icons.location_on : Icons.check_circle,
-                        color: hasActiveVisit
-                            ? AppTheme.warningColor
-                            : AppTheme.successColor,
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
                         size: 24,
                       ),
                     ),
@@ -455,13 +440,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            hasActiveVisit ? 'Checked In' : 'Not Checked In',
+                            'Checked In',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: hasActiveVisit
-                                      ? AppTheme.warningColor
-                                      : AppTheme.textSecondaryColor,
+                                  color: AppTheme.primaryColor,
+                                  fontSize:
+                                      ResponsiveUtils.getResponsiveFontSize(
+                                        context,
+                                        16,
+                                      ),
                                 ),
                           ),
                           SizedBox(
@@ -469,82 +457,44 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 ResponsiveUtils.getResponsiveSpacing(context) *
                                 0.25,
                           ),
-                          if (hasActiveVisit && currentVisit != null) ...[
-                            Text(
-                              'Since: ${_formatCheckInTime(currentVisit.checkInTime)}',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: AppTheme.textSecondaryColor,
-                                  ),
-                            ),
-                            SizedBox(
-                              height:
-                                  ResponsiveUtils.getResponsiveSpacing(
-                                    context,
-                                  ) *
-                                  0.25,
-                            ),
-                            Text(
-                              'Duration: ${_formatDuration(DateTime.now().difference(currentVisit.checkInTime))}',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppTheme.primaryColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ] else ...[
-                            Text(
-                              'Ready to start your day',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: AppTheme.textSecondaryColor,
-                                  ),
-                            ),
-                          ],
+                          Text(
+                            'Ready to start your day',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppTheme.textSecondaryColor,
+                                  fontSize:
+                                      ResponsiveUtils.getResponsiveFontSize(
+                                        context,
+                                        14,
+                                      ),
+                                ),
+                          ),
                         ],
                       ),
                     ),
 
-                    // Action Button
-                    if (hasActiveVisit) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.warningColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Active',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: AppTheme.warningColor,
-                                fontWeight: FontWeight.w600,
-                              ),
+                    // Active Button
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Active',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveUtils.getResponsiveFontSize(
+                            context,
+                            12,
+                          ),
                         ),
                       ),
-                    ] else ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.textSecondaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Inactive',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: AppTheme.textSecondaryColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -565,8 +515,141 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildWelcomeSection() {
-    return Consumer2<AuthProvider, LocationProvider>(
-      builder: (context, authProvider, locationProvider, child) {
+    return Consumer3<AuthProvider, LocationProvider, TargetProvider>(
+      builder: (context, authProvider, locationProvider, targetProvider, child) {
+        final user = authProvider.user;
+        final isSalesPerson = user?.isSalesPerson ?? false;
+        final monthlyTargetAmount = targetProvider.monthlyTargetAmount;
+
+        if (isSalesPerson) {
+          // Calculate completed amount (for now using visits as proxy, can be updated with actual API)
+          final completedAmount =
+              (monthlyTargetAmount * targetProvider.progressPercentage).clamp(
+                0.0,
+                monthlyTargetAmount,
+              );
+          final remainingAmount = (monthlyTargetAmount - completedAmount).clamp(
+            0.0,
+            monthlyTargetAmount,
+          );
+          final progressValue = monthlyTargetAmount > 0
+              ? (completedAmount / monthlyTargetAmount)
+              : 0.0;
+
+          return Container(
+            margin: EdgeInsets.only(
+              top: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+            ),
+            padding: EdgeInsets.all(
+              ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your target amount',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      20,
+                    ),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                ),
+                Text(
+                  '₹ ${_formatAmount(monthlyTargetAmount)}',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      40,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                ),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+                ),
+                // Progress Bar with white active track
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
+                      children: [
+                        Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: progressValue,
+                          child: Container(
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '₹${_formatAmount(completedAmount)} Completed',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: ResponsiveUtils.getResponsiveFontSize(
+                          context,
+                          17,
+                        ),
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    Text(
+                      '₹${_formatAmount(remainingAmount)}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: ResponsiveUtils.getResponsiveFontSize(
+                          context,
+                          17,
+                        ),
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ).animate().fadeIn(duration: 600.ms).slideX(begin: -0.2, end: 0);
+        }
+
         return Container(
           padding: ResponsiveUtils.getResponsivePadding(context),
           decoration: BoxDecoration(
@@ -593,17 +676,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Welcome back,',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(color: Colors.white70),
-                    ),
-                    SizedBox(
-                      height:
-                          ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
-                    ),
-                    Text(
-                      authProvider.user?.name ?? 'User',
+                      user?.name ?? 'User',
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(
                             color: Colors.white,
@@ -614,40 +687,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                           ),
                     ),
-                    SizedBox(
-                      height:
-                          ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-                    ),
-                    Text(
-                      'Ready for your field visits?',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                    ),
-                    if (authProvider.user?.isFlutterDeveloper ?? false) ...[
+                    if (!(user?.isFlutterDeveloper ?? false)) ...[
                       SizedBox(
                         height:
-                            ResponsiveUtils.getResponsiveSpacing(context) *
-                            0.75,
+                            ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
                       ),
-                      _buildDeveloperOfficeStatus(context, locationProvider),
+                      Text(
+                        'Ready for your field visits?',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                      ),
                     ],
                   ],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.all(
-                  ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveUtils.getResponsiveBorderRadius(context, 12),
-                  ),
-                ),
-                child: AppLogo(
-                  width: ResponsiveUtils.getResponsiveIconSize(context, 32),
-                  height: ResponsiveUtils.getResponsiveIconSize(context, 32),
                 ),
               ),
             ],
@@ -660,24 +712,25 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildStatisticsCards() {
     return Consumer2<TargetProvider, VisitProvider>(
       builder: (context, targetProvider, visitProvider, child) {
-        // Use target provider's data for consistency
-        final todayVisitsCount = targetProvider.currentSubmissions;
-        final isTargetCompleted = targetProvider.isTargetCompleted;
-        final remainingTargets = targetProvider.remainingTargets;
-        final progressPercentage = targetProvider.progressPercentage;
-        final isLoading = targetProvider.isLoading;
+        // Use assigned leads for progress calculation
+        final totalAssigned = _assignedLeadsCount > 0
+            ? _assignedLeadsCount
+            : targetProvider.dailyTargets;
+        final completed = _completedLeadsCount > 0
+            ? _completedLeadsCount
+            : targetProvider.currentSubmissions;
+        final remaining = totalAssigned - completed;
+        final progressPercentage = totalAssigned > 0
+            ? (completed / totalAssigned)
+            : 0.0;
+        final isTargetCompleted = completed >= totalAssigned;
+        final isLoading = targetProvider.isLoading || _isLoadingAssignedLeads;
         final error = targetProvider.error;
 
-        // Sync target provider with actual visits if there's a mismatch
-        final actualTodayVisits = _getTodayVisitsCount(visitProvider.visits);
-        if (actualTodayVisits != todayVisitsCount) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _syncTargetWithVisits(visitProvider, targetProvider);
-          });
-        }
-
         return Container(
-          margin: const EdgeInsets.only(bottom: 24),
+          margin: EdgeInsets.only(
+            bottom: ResponsiveUtils.getResponsiveSpacing(context),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -726,19 +779,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ],
                 ),
               ),
-              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
+              SizedBox(
+                height: ResponsiveUtils.getResponsiveSpacing(context) * 0.9,
+              ),
 
-              // Main Progress Card
+              // Main Progress Card - Compact Design
               Container(
-                padding: ResponsiveUtils.getResponsivePadding(context),
+                padding: EdgeInsets.all(
+                  ResponsiveUtils.getResponsiveSpacing(context) * 1.25,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
@@ -748,39 +805,47 @@ class _DashboardScreenState extends State<DashboardScreen>
                     if (error != null) ...[
                       Container(
                         padding: EdgeInsets.all(
-                          ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
+                          ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
                         ),
                         margin: EdgeInsets.only(
-                          bottom: ResponsiveUtils.getResponsiveSpacing(context),
+                          bottom:
+                              ResponsiveUtils.getResponsiveSpacing(context) *
+                              0.75,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.orange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(
-                            ResponsiveUtils.getResponsiveBorderRadius(
-                              context,
-                              8,
-                            ),
-                          ),
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: Colors.orange.withOpacity(0.3),
                           ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.warning, color: Colors.orange, size: 20),
+                            Icon(
+                              Icons.warning,
+                              color: Colors.orange,
+                              size: ResponsiveUtils.getResponsiveIconSize(
+                                context,
+                                19,
+                              ),
+                            ),
                             SizedBox(
                               width:
                                   ResponsiveUtils.getResponsiveSpacing(
                                     context,
                                   ) *
-                                  0.5,
+                                  0.6,
                             ),
                             Expanded(
                               child: Text(
-                                'Using fallback target (${targetProvider.dailyTargets}). API Error: $error',
+                                'Using fallback target (${targetProvider.dailyTargets})',
                                 style: TextStyle(
                                   color: Colors.orange.shade800,
-                                  fontSize: 12,
+                                  fontSize:
+                                      ResponsiveUtils.getResponsiveFontSize(
+                                        context,
+                                        13,
+                                      ),
                                 ),
                               ),
                             ),
@@ -789,223 +854,165 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     ],
 
-                    // Circular Progress Indicator
-                    _buildCircularProgress(
-                      progress: progressPercentage,
-                      completed: todayVisitsCount,
-                      total: targetProvider.dailyTargets,
-                      isCompleted: isTargetCompleted,
-                    ),
-
-                    SizedBox(
-                      height:
-                          ResponsiveUtils.getResponsiveSpacing(context) * 1.5,
-                    ),
-
-                    // Stats Row
+                    // Layout: Progress Circle + Detail Cards (matching image design)
                     Row(
                       children: [
+                        // Left: Circular Progress
+                        _buildCircularProgress(
+                          progress: progressPercentage,
+                          completed: completed,
+                          total: totalAssigned,
+                          isCompleted: isTargetCompleted,
+                        ),
+                        SizedBox(
+                          width:
+                              ResponsiveUtils.getResponsiveSpacing(context) *
+                              1.2,
+                        ),
+                        // Right: Two stacked detail cards
                         Expanded(
-                          child: _buildStatItem(
-                            value: todayVisitsCount.toString(),
-                            label: 'Completed',
-                            color: AppTheme.successColor,
-                            icon: Icons.check_circle_outline,
-                          ),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: Colors.grey[200],
-                        ),
-                        Expanded(
-                          child: _buildBlinkingStatItem(
-                            value: remainingTargets.toString(),
-                            label: 'Remaining',
-                            color: remainingTargets > 0
-                                ? AppTheme.warningColor
-                                : AppTheme.successColor,
-                            icon: remainingTargets > 0
-                                ? Icons.pending_outlined
-                                : Icons.celebration_outlined,
-                            shouldBlink:
-                                !isTargetCompleted && remainingTargets > 0,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(
-                      height:
-                          ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-                    ),
-
-                    // Lead Count API Response Display
-                    Container(
-                      padding: ResponsiveUtils.getResponsivePadding(context),
-                      margin: EdgeInsets.only(
-                        top:
-                            ResponsiveUtils.getResponsiveSpacing(context) *
-                            0.75,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(
-                          ResponsiveUtils.getResponsiveBorderRadius(
-                            context,
-                            12,
-                          ),
-                        ),
-                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                          child: Column(
                             children: [
-                              Icon(Icons.api, color: Colors.blue, size: 20),
+                              // Completed Card (Light Green)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      0.75,
+                                  vertical:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      0.875,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD0FAE5),
+                                  borderRadius: BorderRadius.circular(
+                                    ResponsiveUtils.getResponsiveBorderRadius(
+                                      context,
+                                      14,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: const Color(0xFF2F7D32),
+                                      size:
+                                          ResponsiveUtils.getResponsiveIconSize(
+                                            context,
+                                            20,
+                                          ),
+                                    ),
+                                    SizedBox(
+                                      width:
+                                          ResponsiveUtils.getResponsiveSpacing(
+                                            context,
+                                          ) *
+                                          0.5,
+                                    ),
+                                    Flexible(
+                                      child: Text(
+                                        '$completed Completed',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: const Color(0xFF2F7D32),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize:
+                                                  ResponsiveUtils.getResponsiveFontSize(
+                                                    context,
+                                                    13,
+                                                  ),
+                                            ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               SizedBox(
-                                width:
+                                height:
                                     ResponsiveUtils.getResponsiveSpacing(
                                       context,
                                     ) *
-                                    0.5,
+                                    0.625,
                               ),
-                              Text(
-                                'Lead Count API Response',
-                                style: TextStyle(
-                                  color: Colors.blue.shade800,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                              // Remaining Card (Light Orange)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      0.75,
+                                  vertical:
+                                      ResponsiveUtils.getResponsiveSpacing(
+                                        context,
+                                      ) *
+                                      0.875,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD0FAE5),
+                                  borderRadius: BorderRadius.circular(
+                                    ResponsiveUtils.getResponsiveBorderRadius(
+                                      context,
+                                      14,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.access_time,
+                                      color: AppTheme.warningColor,
+                                      size:
+                                          ResponsiveUtils.getResponsiveIconSize(
+                                            context,
+                                            20,
+                                          ),
+                                    ),
+                                    SizedBox(
+                                      width:
+                                          ResponsiveUtils.getResponsiveSpacing(
+                                            context,
+                                          ) *
+                                          0.5,
+                                    ),
+                                    Flexible(
+                                      child: Text(
+                                        '$remaining Remaining',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: AppTheme.textPrimaryColor,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize:
+                                                  ResponsiveUtils.getResponsiveFontSize(
+                                                    context,
+                                                    13,
+                                                  ),
+                                            ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                0.5,
-                          ),
-                          Text(
-                            'Total Lead Target: ${targetProvider.dailyTargets}',
-                            style: TextStyle(
-                              color: Colors.blue.shade700,
-                              fontSize: ResponsiveUtils.getResponsiveFontSize(
-                                context,
-                                13,
-                              ),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                0.25,
-                          ),
-                          Text(
-                            'Completed Visits: $todayVisitsCount',
-                            style: TextStyle(
-                              color: Colors.blue.shade700,
-                              fontSize: ResponsiveUtils.getResponsiveFontSize(
-                                context,
-                                13,
-                              ),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(
-                            height:
-                                ResponsiveUtils.getResponsiveSpacing(context) *
-                                0.25,
-                          ),
-                          Text(
-                            'Remaining Target: $remainingTargets',
-                            style: TextStyle(
-                              color: remainingTargets > 0
-                                  ? Colors.orange.shade700
-                                  : Colors.green.shade700,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Action Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => context.push('/visit/management'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isTargetCompleted
-                              ? Colors.red
-                              : AppTheme.primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              ResponsiveUtils.getResponsiveBorderRadius(
-                                context,
-                                16,
-                              ),
-                            ),
-                          ),
-                          elevation: 0,
                         ),
-                        child: Text(
-                          isTargetCompleted
-                              ? 'Continue Excellence'
-                              : remainingTargets > 0
-                              ? 'Complete ${remainingTargets} More Visit${remainingTargets > 1 ? 's' : ''}'
-                              : 'Add Visit',
-                          style: TextStyle(
-                            fontSize: ResponsiveUtils.getResponsiveFontSize(
-                              context,
-                              16,
-                            ),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
-                    // // Debug Button to Test API
-                    // SizedBox(
-                    //   width: double.infinity,
-                    //   child: ElevatedButton(
-                    //     onPressed: () async {
-                    //       final authProvider = context.read<AuthProvider>();
-                    //       final userId = authProvider.user?.id;
-                    //       if (userId != null && userId.isNotEmpty) {
-                    //         debugPrint('\n🔧 MANUAL API TEST TRIGGERED:');
-                    //         debugPrint('═══════════════════════════════════════');
-                    //         debugPrint('👤 User ID: $userId');
-                    //         debugPrint('═══════════════════════════════════════');
-
-                    //         await targetProvider.fetchLeadCountFromAPI(userId);
-                    //       } else {
-                    //         debugPrint('❌ No user ID available for API test');
-                    //       }
-                    //     },
-                    //     style: ElevatedButton.styleFrom(
-                    //       backgroundColor: Colors.orange,
-                    //       foregroundColor: Colors.white,
-                    //       padding: const EdgeInsets.symmetric(vertical: 12),
-                    //       shape: RoundedRectangleBorder(
-                    //         borderRadius: BorderRadius.circular(12),
-                    //       ),
-                    //       elevation: 0,
-                    //     ),
-                    //     child: const Text(
-                    //       '🔄 Test Lead Count API',
-                    //       style: TextStyle(
-                    //         fontSize: 14,
-                    //         fontWeight: FontWeight.w600,
-                    //       ),
-                    //     ),
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
@@ -1022,7 +1029,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     required int total,
     required bool isCompleted,
   }) {
-    final size = ResponsiveUtils.getResponsiveIconSize(context, 120);
+    final size = ResponsiveUtils.getResponsiveIconSize(context, 110);
+    final progressPercent = (progress * 100).toInt();
+
     return Container(
       width: size,
       height: size,
@@ -1034,73 +1043,59 @@ class _DashboardScreenState extends State<DashboardScreen>
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.grey[100],
+              color: Colors.grey[200],
             ),
           ),
-          // Completed portion (static/dark)
-          Container(
+          // Progress arc
+          SizedBox(
             width: size,
             height: size,
-            child: CircularProgressIndicator(
-              value: progress,
-              strokeWidth: ResponsiveUtils.getResponsiveIconSize(context, 8),
-              backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                isCompleted
-                    ? Colors
-                          .red // Red when completed
-                    : AppTheme.primaryColor, // Dark blue when in progress
+            child: CustomPaint(
+              painter: _CircularProgressPainter(
+                progress: progress,
+                strokeWidth: 10,
+                backgroundColor: Colors.grey[200]!,
+                progressColor: const Color(0xFF2F7D32),
               ),
             ),
           ),
-          // Blinking remaining portion (only when not completed)
-          if (!isCompleted && progress < 1.0)
-            AnimatedBuilder(
-              animation: _createBlinkingAnimation(),
-              builder: (context, child) {
-                return Container(
-                  width: size,
-                  height: size,
-                  child: CircularProgressIndicator(
-                    value: 1.0, // Full circle for remaining portion
-                    strokeWidth: ResponsiveUtils.getResponsiveIconSize(
-                      context,
-                      8,
-                    ),
-                    backgroundColor: Colors.transparent,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppTheme.primaryColor.withOpacity(
-                        0.4 + (0.4 * _blinkingController.value),
-                      ), // Darker color with blinking opacity
-                    ),
-                  ),
-                );
-              },
-            ),
           // Center content
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  '${(progress * 100).toInt()}%',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isCompleted ? Colors.red : AppTheme.primaryColor,
+                  'Visits',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF3DA641),
                     fontSize: ResponsiveUtils.getResponsiveFontSize(
                       context,
-                      24,
+                      13,
+                    ),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  '$progressPercent%',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF2F7D32),
+                    fontSize: ResponsiveUtils.getResponsiveFontSize(
+                      context,
+                      28,
                     ),
                   ),
                 ),
+                SizedBox(height: 6),
                 Text(
                   '$completed/$total',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textSecondaryColor,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     fontSize: ResponsiveUtils.getResponsiveFontSize(
                       context,
-                      12,
+                      15,
                     ),
                   ),
                 ),
@@ -1109,121 +1104,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required String value,
-    required String label,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(
-            ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-          ),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(
-              ResponsiveUtils.getResponsiveBorderRadius(context, 12),
-            ),
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: ResponsiveUtils.getResponsiveIconSize(context, 24),
-          ),
-        ),
-        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
-            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
-          ),
-        ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: AppTheme.textSecondaryColor,
-            fontWeight: FontWeight.w500,
-            fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBlinkingStatItem({
-    required String value,
-    required String label,
-    required Color color,
-    required IconData icon,
-    required bool shouldBlink,
-  }) {
-    return AnimatedBuilder(
-      animation: _createBlinkingAnimation(),
-      builder: (context, child) {
-        // Zoom effect: scale from 1.0 to 1.3 and back
-        final scaleValue = shouldBlink
-            ? 1.0 + (0.3 * _blinkingController.value)
-            : 1.0;
-
-        return Column(
-          children: [
-            Transform.scale(
-              scale: scaleValue,
-              child: Container(
-                padding: EdgeInsets.all(
-                  ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-                ),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveUtils.getResponsiveBorderRadius(context, 12),
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: ResponsiveUtils.getResponsiveIconSize(context, 24),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-            ),
-            Transform.scale(
-              scale: scaleValue,
-              child: Text(
-                value,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                  fontSize: ResponsiveUtils.getResponsiveFontSize(context, 20),
-                ),
-              ),
-            ),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textSecondaryColor,
-                fontWeight: FontWeight.w500,
-                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Animation<double> _createBlinkingAnimation() {
-    return Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _blinkingController, curve: Curves.easeInOut),
     );
   }
 
@@ -1291,240 +1171,49 @@ class _DashboardScreenState extends State<DashboardScreen>
         .slideY(begin: 0.2, end: 0);
   }
 
-  Widget _buildVisitingHistorySection() {
-    return Consumer<VisitProvider>(
-          builder: (context, visitProvider, child) {
-            final totalVisitsCount = visitProvider.visits.length;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Visiting History ($totalVisitsCount)',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    TextButton(
-                      onPressed: () => context.push('/visit/history'),
-                      child: const Text('View All'),
-                    ),
-                  ],
-                ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
-                if (visitProvider.isLoading)
-                  Container(
-                    padding: ResponsiveUtils.getResponsivePadding(context),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveUtils.getResponsiveBorderRadius(context, 16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Center(child: CircularProgressIndicator()),
-                  )
-                else if (visitProvider.visits.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveUtils.getResponsiveBorderRadius(context, 16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.history,
-                          size: 48,
-                          color: AppTheme.textSecondaryColor.withOpacity(0.5),
-                        ),
-                        SizedBox(
-                          height: ResponsiveUtils.getResponsiveSpacing(context),
-                        ),
-                        Text(
-                          'No visits yet',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(color: AppTheme.textSecondaryColor),
-                        ),
-                        SizedBox(
-                          height:
-                              ResponsiveUtils.getResponsiveSpacing(context) *
-                              0.5,
-                        ),
-                        Text(
-                          'Your visit history will appear here',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppTheme.textSecondaryColor),
-                          textAlign: TextAlign.center,
-                        ),
-                        SizedBox(
-                          height: ResponsiveUtils.getResponsiveSpacing(context),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => context.push('/visit/management'),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Start First Visit'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryColor,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Column(
-                    children: visitProvider.visits
-                        .take(3)
-                        .map((visit) => _buildVisitHistoryCard(visit))
-                        .toList(),
-                  ),
-              ],
-            );
-          },
-        )
-        .animate()
-        .fadeIn(duration: 600.ms, delay: 700.ms)
-        .slideY(begin: 0.2, end: 0);
-  }
-
-  Widget _buildVisitHistoryCard(visit) {
-    return Container(
-      margin: EdgeInsets.only(
-        bottom: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-      ),
-      padding: ResponsiveUtils.getResponsivePadding(context),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(
-          ResponsiveUtils.getResponsiveBorderRadius(context, 12),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(
-              ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-            ),
-            decoration: BoxDecoration(
-              color: visit.isActive
-                  ? AppTheme.warningColor.withOpacity(0.1)
-                  : AppTheme.successColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(
-                ResponsiveUtils.getResponsiveBorderRadius(context, 8),
-              ),
-            ),
-            child: Icon(
-              visit.isActive ? Icons.location_on : Icons.check_circle,
-              color: visit.isActive
-                  ? AppTheme.warningColor
-                  : AppTheme.successColor,
-              size: ResponsiveUtils.getResponsiveIconSize(context, 20),
-            ),
-          ),
-          SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context) * 0.75),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  visit.clientName,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(
-                  height: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
-                ),
-                Text(
-                  _formatVisitDate(visit.visitTime),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondaryColor,
-                  ),
-                ),
-                if (visit.visitingReason != null &&
-                    visit.visitingReason!.isNotEmpty) ...[
-                  SizedBox(
-                    height:
-                        ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
-                  ),
-                  Text(
-                    visit.visitingReason!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textSecondaryColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-              vertical: ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
-            ),
-            decoration: BoxDecoration(
-              color: visit.isActive
-                  ? AppTheme.warningColor.withOpacity(0.1)
-                  : AppTheme.successColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(
-                ResponsiveUtils.getResponsiveBorderRadius(context, 12),
-              ),
-            ),
-            child: Text(
-              visit.isActive ? 'Active' : 'Completed',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: visit.isActive
-                    ? AppTheme.warningColor
-                    : AppTheme.successColor,
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatCheckInTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
+  String _formatAmount(double amount) {
+    if (amount >= 100000) {
+      final lakhs = amount / 100000;
+      if (lakhs >= 100) {
+        final crores = lakhs / 100;
+        return '${crores.toStringAsFixed(2)}Cr';
+      }
+      return '${lakhs.toStringAsFixed(2)}L';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(1)}K';
     } else {
-      return '${minutes}m';
+      return amount.toStringAsFixed(0);
+    }
+  }
+
+  Future<void> _loadAssignedLeads(String userId) async {
+    try {
+      setState(() {
+        _isLoadingAssignedLeads = true;
+      });
+
+      final assignedLeads = await AssignedLeadsService.getAssignedLeads(userId);
+
+      // Calculate completed leads (leads with visits today or with specific status)
+      // For now, we'll use visits count as completed leads
+      final visitProvider = context.read<VisitProvider>();
+      final todayVisits = _getTodayVisitsCount(visitProvider.visits);
+
+      setState(() {
+        _assignedLeadsCount = assignedLeads.length;
+        _completedLeadsCount = todayVisits.clamp(0, assignedLeads.length);
+        _isLoadingAssignedLeads = false;
+      });
+
+      debugPrint('\n📊 ASSIGNED LEADS LOADED:');
+      debugPrint('Total Assigned: $_assignedLeadsCount');
+      debugPrint('Completed: $_completedLeadsCount');
+      debugPrint('Remaining: ${_assignedLeadsCount - _completedLeadsCount}');
+    } catch (e) {
+      debugPrint('❌ Error loading assigned leads: $e');
+      setState(() {
+        _isLoadingAssignedLeads = false;
+      });
     }
   }
 
@@ -1673,223 +1362,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         .animate()
         .fadeIn(duration: 800.ms, delay: 500.ms)
         .scale(begin: const Offset(0.8, 0.8), end: const Offset(1.0, 1.0));
-  }
-
-  Widget _buildDeveloperOfficeStatus(
-    BuildContext context,
-    LocationProvider locationProvider,
-  ) {
-    final position = locationProvider.currentPosition;
-    final bool hasLocation = position != null;
-    bool isInOffice;
-    if (position != null) {
-      isInOffice = LocationValidationService.isUserInOffice(position);
-    } else {
-      isInOffice = !locationProvider.isOutsideOfficeRadius;
-    }
-    final Color statusColor = isInOffice
-        ? Colors.greenAccent.shade100
-        : Colors.orangeAccent.shade100;
-    final Color statusTextColor = isInOffice
-        ? Colors.greenAccent.shade700
-        : Colors.orangeAccent.shade700;
-    final String statusLabel = isInOffice
-        ? 'Office Range: In Range'
-        : 'Office Range: Out of Range';
-
-    final Duration countdownDuration =
-        locationProvider.autoCheckoutRemaining ?? Duration.zero;
-    final bool showTimer =
-        locationProvider.isAutoCheckoutTimerActive &&
-        countdownDuration.inSeconds > 0;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveUtils.getResponsiveSpacing(context) * 0.75,
-        vertical: ResponsiveUtils.getResponsiveSpacing(context) * 0.625,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(
-          ResponsiveUtils.getResponsiveBorderRadius(context, 12),
-        ),
-        border: Border.all(color: Colors.white.withOpacity(0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(
-                  ResponsiveUtils.getResponsiveSpacing(context) * 0.375,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isInOffice ? Icons.verified : Icons.warning_amber_rounded,
-                  color: statusTextColor,
-                  size: ResponsiveUtils.getResponsiveIconSize(context, 16),
-                ),
-              ),
-              SizedBox(
-                width: ResponsiveUtils.getResponsiveSpacing(context) * 0.625,
-              ),
-              Expanded(
-                child: Text(
-                  statusLabel,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: statusTextColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveUtils.getResponsiveFontSize(
-                      context,
-                      14,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (showTimer) ...[
-            SizedBox(
-              height: ResponsiveUtils.getResponsiveSpacing(context) * 0.375,
-            ),
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(
-                    ResponsiveUtils.getResponsiveSpacing(context) * 0.25,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.timer_outlined,
-                    color: Colors.orange,
-                    size: ResponsiveUtils.getResponsiveIconSize(context, 14),
-                  ),
-                ),
-                SizedBox(
-                  width: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-                ),
-                Expanded(
-                  child: Text(
-                    'Auto check-out in ${_formatCountdown(countdownDuration)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.orange.shade200,
-                      fontWeight: FontWeight.w600,
-                      fontSize: ResponsiveUtils.getResponsiveFontSize(
-                        context,
-                        12,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (!hasLocation) ...[
-            SizedBox(
-              height: ResponsiveUtils.getResponsiveSpacing(context) * 0.375,
-            ),
-            Text(
-              'Location not available. Please enable GPS.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white70,
-                fontStyle: FontStyle.italic,
-                fontSize: ResponsiveUtils.getResponsiveFontSize(context, 12),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _formatVisitDate(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final visitDate = DateTime(date.year, date.month, date.day);
-
-    if (visitDate == today) {
-      return 'Today ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (visitDate == today.subtract(const Duration(days: 1))) {
-      return 'Yesterday ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } else {
-      return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    }
-  }
-
-  Widget _buildRecentActivity() {
-    return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Activity',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/visit/history'),
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context)),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.history,
-                    size: 48,
-                    color: AppTheme.textSecondaryColor.withOpacity(0.5),
-                  ),
-                  SizedBox(
-                    height: ResponsiveUtils.getResponsiveSpacing(context),
-                  ),
-                  Text(
-                    'No recent activity',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.textSecondaryColor,
-                    ),
-                  ),
-                  SizedBox(
-                    height: ResponsiveUtils.getResponsiveSpacing(context) * 0.5,
-                  ),
-                  Text(
-                    'Your visit history will appear here',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.textSecondaryColor,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        )
-        .animate()
-        .fadeIn(duration: 600.ms, delay: 800.ms)
-        .slideY(begin: 0.2, end: 0);
   }
 
   int _getTodayVisitsCount(List visits) {
@@ -3132,12 +2604,74 @@ class _DashboardScreenState extends State<DashboardScreen>
         .fadeIn(duration: 600.ms, delay: delay.ms)
         .slideY(begin: 0.2, end: 0);
   }
+}
 
-  Future<void> _handleLogout() async {
-    final authProvider = context.read<AuthProvider>();
-    await authProvider.logout();
-    if (mounted) {
-      context.go('/login');
+// Custom Painter for Circular Progress with white circle indicator
+class _CircularProgressPainter extends CustomPainter {
+  final double progress;
+  final double strokeWidth;
+  final Color backgroundColor;
+  final Color progressColor;
+
+  _CircularProgressPainter({
+    required this.progress,
+    required this.strokeWidth,
+    required this.backgroundColor,
+    required this.progressColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    // Draw background circle
+    final backgroundPaint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    canvas.drawCircle(center, radius, backgroundPaint);
+
+    // Draw progress arc
+    if (progress > 0) {
+      final progressPaint = Paint()
+        ..color = progressColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+
+      final sweepAngle = 2 * 3.14159 * progress;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -3.14159 / 2, // Start from top
+        sweepAngle,
+        false,
+        progressPaint,
+      );
+
+      // Draw white circle indicator at progress end
+      final angle = -3.14159 / 2 + sweepAngle;
+      final indicatorX = center.dx + radius * math.cos(angle);
+      final indicatorY = center.dy + radius * math.sin(angle);
+
+      final indicatorPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(indicatorX, indicatorY), 5, indicatorPaint);
+
+      // Add shadow for indicator
+      final shadowPaint = Paint()
+        ..color = Colors.black.withOpacity(0.1)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+
+      canvas.drawCircle(Offset(indicatorX, indicatorY + 1), 5, shadowPaint);
     }
+  }
+
+  @override
+  bool shouldRepaint(_CircularProgressPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }

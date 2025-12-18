@@ -103,7 +103,7 @@ class CustomDrawer extends StatelessWidget {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         final user = authProvider.user;
-        final isFlutterDeveloper = user?.isFlutterDeveloper ?? false;
+        final isSalesPerson = user?.isSalesPerson ?? false;
 
         return Expanded(
           child: ListView(
@@ -116,41 +116,10 @@ class CustomDrawer extends StatelessWidget {
                 title: 'Dashboard',
                 route: '/dashboard',
               ),
-              // Show Leave Application and History for Flutter Developer only
-              if (isFlutterDeveloper) ...[
-                _buildMenuItem(
-                  context,
-                  icon: Icons.event_note,
-                  title: 'Leave Application',
-                  route: '/leave/application',
-                ),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.history,
-                  title: 'Leave History',
-                  route: '/leave/history',
-                ),
-              ],
-              // Hide these items for Flutter Developer
-              if (!isFlutterDeveloper) ...[
-                _buildMenuItem(
-                  context,
-                  icon: Icons.people,
-                  title: 'Leads',
-                  route: '/leads',
-                ),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.assignment_ind,
-                  title: 'Assigned Leads',
-                  route: '/assigned-leads',
-                ),
-                _buildMenuItem(
-                  context,
-                  icon: Icons.history,
-                  title: 'Visit History',
-                  route: '/visit/history',
-                ),
+              // Sales person ke liye: Tracking, Call Logs
+              // Developer ke liye: Leave Application, Leave History, Attendance
+              if (isSalesPerson) ...[
+                // Sales person menu items
                 _buildMenuItem(
                   context,
                   icon: Icons.route,
@@ -163,6 +132,32 @@ class CustomDrawer extends StatelessWidget {
                   title: 'Live Tracking',
                   route: '/tracking/live',
                 ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.phone_in_talk,
+                  title: 'Call Logs',
+                  route: '/call-logs',
+                ),
+              ] else ...[
+                // Developer menu items
+                _buildMenuItem(
+                  context,
+                  icon: Icons.event_note,
+                  title: 'Leave Application',
+                  route: '/leave/application',
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.history,
+                  title: 'Leave History',
+                  route: '/leave/history',
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.access_time,
+                  title: 'Attendance',
+                  route: '/attendance',
+                ),
               ],
               _buildMenuItem(
                 context,
@@ -170,20 +165,6 @@ class CustomDrawer extends StatelessWidget {
                 title: 'Profile',
                 route: '/profile',
               ),
-              _buildMenuItem(
-                context,
-                icon: Icons.access_time,
-                title: 'Attendance',
-                route: '/attendance',
-              ),
-              // Only show Call Logs for non-Flutter Developer
-              if (!isFlutterDeveloper)
-                _buildMenuItem(
-                  context,
-                  icon: Icons.phone_in_talk,
-                  title: 'Call Logs',
-                  route: '/call-logs',
-                ),
               const Divider(),
               _buildMenuItem(
                 context,
