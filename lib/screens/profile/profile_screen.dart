@@ -88,10 +88,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       bottomNavigationBar: Consumer2<VisitProvider, AuthProvider>(
         builder: (context, visitProvider, authProvider, child) {
+          final user = authProvider.user;
+          final isTelecaller = user?.isTelecaller ?? false;
           final isFlutterDeveloper =
               authProvider.user?.isFlutterDeveloper ?? false;
+          
+          // Telecaller users ke liye telecalling bottom navigation
+          if (isTelecaller) {
+            return BottomNavigationBar(
+              currentIndex: 4, // Profile tab selected
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: AppTheme.primaryColor,
+              unselectedItemColor: Colors.grey,
+              onTap: (index) {
+                switch (index) {
+                  case 0:
+                    // Dashboard
+                    context.go('/telecalling-dashboard');
+                    break;
+                  case 1:
+                    // Reports
+                    context.go('/telecalling-reports');
+                    break;
+                  case 2:
+                    // Check-in
+                    context.go('/checkin-checkout');
+                    break;
+                  case 3:
+                    // Records
+                    context.go('/telecalling-records');
+                    break;
+                  case 4:
+                    // Already on Profile
+                    break;
+                }
+              },
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Dashboard',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.bar_chart_outlined),
+                  activeIcon: Icon(Icons.bar_chart),
+                  label: 'Reports',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.login_outlined),
+                  activeIcon: Icon(Icons.login),
+                  label: 'Check-in',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.folder_outlined),
+                  activeIcon: Icon(Icons.folder),
+                  label: 'Records',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  activeIcon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            );
+          }
+          
+          // Developer aur Sales users ke liye original bottom navigation
           final profileIndex = isFlutterDeveloper ? 3 : 4;
-
           return CustomBottomNavigation(
             currentIndex: profileIndex,
             isCheckedIn: visitProvider.hasActiveVisit,

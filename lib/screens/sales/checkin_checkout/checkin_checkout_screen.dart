@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -555,14 +556,23 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
         //   onPressed: () => context.pop(),
         // ),
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.calendar_month,
-              color: Colors.white,
-              size: ResponsiveUtils.getResponsiveIconSize(context, 20),
-            ),
-            onPressed: () => _showAttendanceDrawer(),
-            tooltip: 'View Attendance',
+          // Attendance drawer button - hide for telecaller users
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, child) {
+              final isTelecaller = authProvider.user?.isTelecaller ?? false;
+              if (!isTelecaller) {
+                return IconButton(
+                  icon: Icon(
+                    Icons.calendar_month,
+                    color: Colors.white,
+                    size: ResponsiveUtils.getResponsiveIconSize(context, 20),
+                  ),
+                  onPressed: () => _showAttendanceDrawer(),
+                  tooltip: 'View Attendance',
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
           IconButton(
             icon: Icon(
@@ -696,10 +706,73 @@ class _CheckinCheckoutScreenState extends State<CheckinCheckoutScreen>
       ),
       bottomNavigationBar: Consumer2<VisitProvider, AuthProvider>(
         builder: (context, visitProvider, authProvider, child) {
+          final user = authProvider.user;
+          final isTelecaller = user?.isTelecaller ?? false;
           final isFlutterDeveloper =
               authProvider.user?.isFlutterDeveloper ?? false;
+          
+          // Telecaller users ke liye telecalling bottom navigation
+          if (isTelecaller) {
+            return BottomNavigationBar(
+              currentIndex: 2, // Check-in tab selected
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: AppTheme.primaryColor,
+              unselectedItemColor: Colors.grey,
+              onTap: (index) {
+                switch (index) {
+                  case 0:
+                    // Dashboard
+                    context.go('/telecalling-dashboard');
+                    break;
+                  case 1:
+                    // Reports
+                    context.go('/telecalling-reports');
+                    break;
+                  case 2:
+                    // Already on Check-in
+                    break;
+                  case 3:
+                    // Records
+                    context.go('/telecalling-records');
+                    break;
+                  case 4:
+                    // Profile
+                    context.go('/profile');
+                    break;
+                }
+              },
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Dashboard',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.bar_chart_outlined),
+                  activeIcon: Icon(Icons.bar_chart),
+                  label: 'Reports',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.login_outlined),
+                  activeIcon: Icon(Icons.login),
+                  label: 'Check-in',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.folder_outlined),
+                  activeIcon: Icon(Icons.folder),
+                  label: 'Records',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  activeIcon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            );
+          }
+          
+          // Developer aur Sales users ke liye original bottom navigation
           final checkInIndex = isFlutterDeveloper ? 2 : 3;
-
           return CustomBottomNavigation(
             currentIndex: checkInIndex,
             isCheckedIn: visitProvider.hasActiveVisit,

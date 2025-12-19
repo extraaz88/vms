@@ -67,7 +67,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (mounted) {
       if (authProvider.isLoggedIn) {
-        context.go('/dashboard');
+        final user = authProvider.user;
+        // Check if user is telecaller (Field Sales)
+        if (user?.isTelecaller ?? false) {
+          context.go('/telecalling-dashboard');
+        } else {
+          context.go('/dashboard');
+        }
       } else {
         context.go('/login');
       }

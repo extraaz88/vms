@@ -54,6 +54,19 @@ class User {
     return roleLower == 'sales';
   }
 
+  // Helper method to check if user is Telecaller (Field Sales)
+  // Telecaller tab hoga jab type "Field Sales" ho
+  bool get isTelecaller {
+    if (role.isEmpty || role.trim().isEmpty) {
+      return false;
+    }
+    
+    final roleLower = role.toLowerCase().trim();
+    
+    // Check if role is "Field Sales" or "field sales"
+    return roleLower == 'field sales';
+  }
+
   factory User.fromJson(Map<String, dynamic> json) {
     // API se 'type' field aata hai (e.g., "User", "sales", null, etc.)
     // 'type' ko 'role' mein map karte hain for consistency

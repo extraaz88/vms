@@ -83,7 +83,13 @@ class _LoginScreenState extends State<LoginScreen>
     );
 
     if (success && mounted) {
-      context.go('/dashboard');
+      final user = authProvider.user;
+      // Check if user is telecaller (Field Sales)
+      if (user?.isTelecaller ?? false) {
+        context.go('/telecalling-dashboard');
+      } else {
+        context.go('/dashboard');
+      }
     } else if (mounted) {
       // Show simple error message
       ScaffoldMessenger.of(context).showSnackBar(

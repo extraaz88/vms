@@ -22,33 +22,30 @@ import '../../screens/notifications/notifications_screen.dart';
 import '../../screens/sales/call_logs/call_logs_screen.dart';
 import '../../screens/developer/leave/leave_application_screen.dart';
 import '../../screens/developer/leave/leave_history_screen.dart';
+import '../../screens/telicaliing/telecalling_dashboard_screen.dart';
+import '../../screens/telicaliing/telecalling_records_screen.dart';
+import '../../screens/telicaliing/telecalling_reports_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
+    // Start app with splash screen
     initialLocation: '/splash',
     debugLogDiagnostics: true,
-    redirect: (context, state) {
-      final authProvider = context.read<AuthProvider>();
-      final isLoggedIn = authProvider.isLoggedIn;
-
-      // Skip redirect for splash screen
-      if (state.uri.path == '/splash') {
-        return null;
-      }
-
-      // Redirect to login if not authenticated
-      if (!isLoggedIn && state.uri.path != '/login') {
-        return '/login';
-      }
-
-      // Redirect to dashboard if authenticated and on login page
-      if (isLoggedIn && state.uri.path == '/login') {
-        return '/dashboard';
-      }
-
-      return null;
-    },
     routes: [
+      // Telecalling Dashboard (entry screen)
+      GoRoute(
+        path: '/telecalling-dashboard',
+        builder: (context, state) => const TelecallingDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/telecalling-records',
+        builder: (context, state) => const TelecallingRecordsScreen(),
+      ),
+      GoRoute(
+        path: '/telecalling-reports',
+        builder: (context, state) => const TelecallingReportsScreen(),
+      ),
+
       // Splash Screen
       GoRoute(
         path: '/splash',
@@ -64,12 +61,17 @@ class AppRouter {
         builder: (context, state) {
           final authProvider = context.read<AuthProvider>();
           final user = authProvider.user;
-          
-          // Priority: Sales person check first
-          // Agar role "sales" ya "field" hai to Sales dashboard
-          // Agar role null/empty/undefined hai ya kuch bhi aur hai to Developer dashboard
+
+          // Priority: Telecaller check first (Field Sales)
+          final isTelecaller = user?.isTelecaller ?? false;
+          if (isTelecaller) {
+            // Telecaller (Field Sales) - Telecalling dashboard
+            return const TelecallingDashboardScreen();
+          }
+
+          // Priority: Sales person check
+          // Agar role "sales" hai to Sales dashboard
           final isSalesPerson = user?.isSalesPerson ?? false;
-          
           if (isSalesPerson) {
             // Sales person - Sales dashboard
             return const SalesDashboardScreen();

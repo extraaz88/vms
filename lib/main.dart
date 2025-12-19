@@ -106,11 +106,6 @@ class VMSApp extends StatelessWidget {
       },
       child: Consumer<AuthProvider>(
         builder: (context, authProvider, _) {
-          // Initialize auth state on app start
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            authProvider.initializeAuth();
-          });
-
           return AppLifecycleObserver(
             child: MaterialApp.router(
               title: 'VMS - Field Visit Tracker',
